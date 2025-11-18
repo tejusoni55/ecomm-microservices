@@ -32,7 +32,7 @@ This project is designed as a **learning platform** and foundation for exploring
 ### Supporting Infrastructure
 - **PostgreSQL**: Main database
 - **Redis**: Caching layer
-- **Kafka + Zookeeper**: Event streaming
+- **Kafka with KRaft**: Event streaming
 - **Maildev**: Email testing (local dev)
 - **OpenTelemetry**: Distributed tracing
 - **Envoy**: API Gateway

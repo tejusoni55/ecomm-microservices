@@ -1,0 +1,30 @@
+# Dependencies (installed in container)
+node_modules/
+.pnpm-store/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Git
+.git/
+.gitignore
+
+# Documentation (not needed in container)
+*.md
+CONTRIBUTING.md
+CHECKLIST.md
+
+# Testing
+**/tests/
+**/*.test.js
+**/jest.config.js
+**/coverage/
+
+# Logs
+logs/
+*.log
+
+# Docker compose (not needed in image)
+docker-compose.yml
