@@ -1,0 +1,31 @@
+{
+  "name": "users",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Users microservice: authentication, signup/login, JWT tokens",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon --exec node src/index.js",
+    "test": "jest",
+    "test:watch": "jest --watch"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "bcrypt": "^5.1.1",
+    "jsonwebtoken": "^9.0.2",
+    "dotenv": "^16.3.1",
+    "@ecomm/logger": "workspace:*",
+    "@ecomm/db": "workspace:*",
+    "@ecomm/kafka": "workspace:*",
+    "@grpc/grpc-js": "^1.9.13",
+    "@grpc/proto-loader": "^0.7.10",
+    "pg": "^8.11.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2",
+    "jest": "^29.7.0",
+    "supertest": "^6.3.3"
+  }
+}

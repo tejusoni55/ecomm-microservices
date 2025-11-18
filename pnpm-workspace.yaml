@@ -1,0 +1,5 @@
+# pnpm workspace configuration for Ecomm-Microservices monorepo
+packages:
+  - 'services/*'
+  - 'libs/*'
+  - 'scripts'

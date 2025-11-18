@@ -1,0 +1,33 @@
+{
+  "name": "ecomm-microservices",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Practice Node.js microservices monorepo for e-commerce platform",
+  "author": "Tejas Soni",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "scripts": {
+    "bootstrap": "pnpm install && pnpm run docker:up && pnpm run migrate:all && pnpm run seed:all",
+    "dev": "concurrently \"pnpm --filter 'users' dev\" \"pnpm --filter 'products' dev\" \"pnpm --filter 'orders' dev\" \"pnpm --filter 'payments' dev\" \"pnpm --filter 'notifications' dev\"",
+    "dev:users": "pnpm --filter users dev",
+    "dev:products": "pnpm --filter products dev",
+    "dev:orders": "pnpm --filter orders dev",
+    "dev:payments": "pnpm --filter payments dev",
+    "dev:notifications": "pnpm --filter notifications dev",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f",
+    "migrate:all": "node scripts/run-migrations.js",
+    "seed:all": "node scripts/seed-db.js",
+    "test": "pnpm -r test",
+    "test:watch": "pnpm -r test -- --watch"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "nodemon": "^3.0.2"
+  }
+}

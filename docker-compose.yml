@@ -1,0 +1,142 @@
+# Docker Compose configuration for local development with latest versions
+# Includes PostgreSQL 16, Redis 7, Kafka with KRaft (no Zookeeper), Maildev, and OpenTelemetry Collector
+# BetterStack integration for logs and traces
+
+version: '3.8'
+
+services:
+  # PostgreSQL database (latest version 16)
+  postgres:
+    image: postgres:16-alpine
+    container_name: ecomm-postgres
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+      POSTGRES_DB: ${DB_NAME:-ecomm_dev}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - ecomm-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis cache (latest version 7)
+  redis:
+    image: redis:7-alpine
+    container_name: ecomm-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - ecomm-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Kafka message broker with KRaft mode (no Zookeeper needed)
+  # KRaft is the new consensus protocol that replaces Zookeeper
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: ecomm-kafka
+    ports:
+      - "9092:9092"
+      - "9101:9101"
+    environment:
+      # KRaft mode configuration
+      KAFKA_NODE_ID: 1
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092'
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:29093'
+      KAFKA_LISTENERS: 'PLAINTEXT://kafka:29092,CONTROLLER://kafka:29093,PLAINTEXT_HOST://0.0.0.0:9092'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+      KAFKA_BROKER_RACK: 'MZone0'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
+      CLUSTER_ID: 'MkwQo83dQn2W_0DTbbVZbQ'
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      KAFKA_LOG_RETENTION_HOURS: 24
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - ecomm-network
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions.sh", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # OpenTelemetry Collector (latest version with contrib)
+  # Collects logs from Winston and sends to BetterStack
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.98.0
+    container_name: ecomm-otel-collector
+    command:
+      - "--config=/etc/otel-collector-config.yaml"
+    volumes:
+      - ./infra/otel-collector/config.yaml:/etc/otel-collector-config.yaml
+    ports:
+      - "4317:4317"     # OTLP gRPC receiver (from services)
+      - "4318:4318"     # OTLP HTTP receiver (from services)
+      - "24224:24224"   # Fluent Forward receiver for logs from Winston
+      - "24224:24224/udp" # Fluent Forward UDP
+    environment:
+      BETTERSTACK_LOGS_TOKEN: ${BETTERSTACK_LOGS_TOKEN:-your-token-here}
+      OTEL_SERVICE_NAME: ecomm-otel-collector
+    networks:
+      - ecomm-network
+    depends_on:
+      - postgres
+      - kafka
+
+  # Maildev for local email testing (latest version)
+  maildev:
+    image: maildev/maildev:2.1.0
+    container_name: ecomm-maildev
+    ports:
+      - "1080:1080"  # Web UI
+      - "1025:1025"  # SMTP
+    networks:
+      - ecomm-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:1080"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Envoy proxy (API Gateway) - latest version
+  envoy:
+    image: envoyproxy/envoy:v1.28-latest
+    container_name: ecomm-envoy
+    command: /usr/local/bin/envoy -c /etc/envoy/envoy.yaml
+    volumes:
+      - ./infra/envoy/envoy.yaml:/etc/envoy/envoy.yaml
+    ports:
+      - "8000:8000"   # Main API Gateway port
+      - "9901:9901"   # Admin interface
+    networks:
+      - ecomm-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+networks:
+  ecomm-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  kafka_data:

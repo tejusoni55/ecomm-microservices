@@ -1,0 +1,134 @@
+# Envoy proxy configuration for local development API Gateway
+# Routes requests to microservices on different ports
+
+admin:
+  address:
+    socket_address:
+      address: 0.0.0.0
+      port_value: 9901
+
+static_resources:
+  listeners:
+    - name: listener_0
+      address:
+        socket_address:
+          address: 0.0.0.0
+          port_value: 8000
+      filter_chains:
+        - filters:
+            - name: envoy.filters.network.http_connection_manager
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                stat_prefix: ingress_http
+                codec_type: AUTO
+                route_config:
+                  name: local_route
+                  virtual_hosts:
+                    - name: backend
+                      domains: ["*"]
+                      routes:
+                        # Users Service routes
+                        - match:
+                            prefix: "/api/users"
+                          route:
+                            cluster: users_service
+                            prefix_rewrite: "/"
+                        
+                        # Products Service routes
+                        - match:
+                            prefix: "/api/products"
+                          route:
+                            cluster: products_service
+                            prefix_rewrite: "/"
+                        
+                        # Orders Service routes
+                        - match:
+                            prefix: "/api/orders"
+                          route:
+                            cluster: orders_service
+                            prefix_rewrite: "/"
+                        
+                        # Payments Service routes
+                        - match:
+                            prefix: "/api/payments"
+                          route:
+                            cluster: payments_service
+                            prefix_rewrite: "/"
+                        
+                        # Notifications Service routes
+                        - match:
+                            prefix: "/api/notifications"
+                          route:
+                            cluster: notifications_service
+                            prefix_rewrite: "/"
+                
+                http_filters:
+                  - name: envoy.filters.http.router
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+
+  clusters:
+    - name: users_service
+      type: STRICT_DNS
+      connect_timeout: 0.25s
+      load_assignment:
+        cluster_name: users_service
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: host.docker.internal
+                      port_value: 3001
+
+    - name: products_service
+      type: STRICT_DNS
+      connect_timeout: 0.25s
+      load_assignment:
+        cluster_name: products_service
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: host.docker.internal
+                      port_value: 3002
+
+    - name: orders_service
+      type: STRICT_DNS
+      connect_timeout: 0.25s
+      load_assignment:
+        cluster_name: orders_service
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: host.docker.internal
+                      port_value: 3003
+
+    - name: payments_service
+      type: STRICT_DNS
+      connect_timeout: 0.25s
+      load_assignment:
+        cluster_name: payments_service
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: host.docker.internal
+                      port_value: 3004
+
+    - name: notifications_service
+      type: STRICT_DNS
+      connect_timeout: 0.25s
+      load_assignment:
+        cluster_name: notifications_service
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: host.docker.internal
+                      port_value: 3005

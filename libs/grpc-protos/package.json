@@ -1,0 +1,8 @@
+{
+  "name": "@ecomm/grpc-protos",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "gRPC protocol buffer definitions and generated stubs",
+  "main": "index.js"
+}

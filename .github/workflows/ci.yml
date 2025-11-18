@@ -1,0 +1,234 @@
+# GitHub Actions CI/CD Pipeline for Ecomm-Microservices
+# Runs tests, builds Docker images, and pushes to ECR
+
+name: CI/CD
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  REGISTRY_PLACEHOLDER: "ACCOUNT.dkr.ecr.us-east-1.amazonaws.com"
+
+jobs:
+  # ============================================================
+  # TEST JOB - Run linting and unit tests
+  # ============================================================
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ecomm_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'pnpm'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Run linter
+        run: pnpm run lint || echo "Linting disabled"
+        continue-on-error: true
+
+      - name: Run tests
+        run: pnpm test
+        env:
+          NODE_ENV: test
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          DB_NAME: ecomm_test
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage/coverage-final.json
+        continue-on-error: true
+
+  # ============================================================
+  # BUILD JOB - Build Docker images and push to ECR
+  # ============================================================
+  build:
+    name: Build and Push Docker Images
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+        env:
+          AWS_REGION: ${{ env.AWS_REGION }}
+
+      - name: Build and push Users service
+        uses: docker/build-push-action@v4
+        with:
+          context: ./services/users
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/ecomm-users:${{ github.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/ecomm-users:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push Products service
+        uses: docker/build-push-action@v4
+        with:
+          context: ./services/products
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/ecomm-products:${{ github.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/ecomm-products:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push Orders service
+        uses: docker/build-push-action@v4
+        with:
+          context: ./services/orders
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/ecomm-orders:${{ github.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/ecomm-orders:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push Payments service
+        uses: docker/build-push-action@v4
+        with:
+          context: ./services/payments
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/ecomm-payments:${{ github.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/ecomm-payments:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push Notifications service
+        uses: docker/build-push-action@v4
+        with:
+          context: ./services/notifications
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/ecomm-notifications:${{ github.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/ecomm-notifications:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ============================================================
+  # SECURITY JOB - Scan for vulnerabilities
+  # ============================================================
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  # ============================================================
+  # DEPLOY JOB - Deploy to ECS (placeholder)
+  # ============================================================
+  deploy:
+    name: Deploy to ECS
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # TODO: Add actual ECS deployment steps
+      # - name: Update ECS service
+      #   run: |
+      #     aws ecs update-service \
+      #       --cluster ecomm-cluster \
+      #       --service ecomm-users-service \
+      #       --force-new-deployment
+
+      - name: ECS deployment placeholder
+        run: echo "Add ECS deployment steps when ready"

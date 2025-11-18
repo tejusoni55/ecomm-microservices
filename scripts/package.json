@@ -1,0 +1,7 @@
+{
+  "name": "scripts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Helper scripts for migrations, seeding, and bootstrapping"
+}

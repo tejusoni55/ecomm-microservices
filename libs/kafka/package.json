@@ -1,0 +1,14 @@
+{
+  "name": "@ecomm/kafka",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Kafkajs wrapper for easy producer/consumer setup",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "dependencies": {
+    "kafkajs": "^2.2.4"
+  }
+}

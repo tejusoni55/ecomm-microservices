@@ -1,0 +1,20 @@
+// Proto file for Orders gRPC service
+syntax = "proto3";
+
+package ecomm.orders;
+
+service OrderService {
+  rpc GetOrder (GetOrderRequest) returns (GetOrderResponse);
+}
+
+message GetOrderRequest {
+  int64 order_id = 1;
+}
+
+message GetOrderResponse {
+  int64 id = 1;
+  int64 user_id = 2;
+  string status = 3;
+  double total = 4;
+  string created_at = 5;
+}

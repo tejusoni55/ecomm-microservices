@@ -1,0 +1,24 @@
+{
+  "name": "@ecomm/logger",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Winston-based logging with OpenTelemetry integration for BetterStack",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "dependencies": {
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/auto-instrumentations-node": "^0.41.1",
+    "@opentelemetry/exporter-logs-otlp-http": "^0.45.1",
+    "@opentelemetry/resources": "^1.18.0",
+    "@opentelemetry/sdk-logs": "^0.45.1",
+    "@opentelemetry/sdk-node": "^0.45.1",
+    "@opentelemetry/semantic-conventions": "^1.18.0",
+    "winston": "^3.11.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}
