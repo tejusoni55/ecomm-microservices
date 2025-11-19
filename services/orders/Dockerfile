@@ -14,6 +14,6 @@ COPY --from=builder /app/package.json ./
 COPY services/orders ./services/orders
 COPY libs ./libs
 WORKDIR /app/services/orders
-EXPOSE 3003
+EXPOSE 8003
 ENV NODE_ENV=production
 CMD ["node", "src/index.js"]

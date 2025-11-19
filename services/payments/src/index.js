@@ -7,7 +7,7 @@ import { processPayment, getPaymentStatus } from './payment-processor.js';
 import { startOrderConsumer } from './kafka-consumer.js';
 
 const app = express();
-const PORT = process.env.SERVICE_PORT || 3004;
+const PORT = process.env.SERVICE_PORT || 8004;
 
 app.use(express.json());
 

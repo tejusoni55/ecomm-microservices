@@ -53,7 +53,7 @@ export async function processPayment(orderId, userId, amount) {
       },
     });
 
-    // Simulate processing delay
+    // Simulate processing delay (Payment Gateway Processing Time)
     await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 1500));
 
     // Simulate payment processing with configurable failure rate

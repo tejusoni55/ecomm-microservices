@@ -1,4 +1,4 @@
-// Jest configuration for users service
+// Jest configuration for notifications service
 export default {
   testEnvironment: 'node',
   transform: {},
@@ -9,3 +9,4 @@ export default {
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },
 };
+

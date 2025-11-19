@@ -23,7 +23,7 @@ COPY libs ./libs
 
 WORKDIR /app/services/users
 
-EXPOSE 3001
+EXPOSE 8001
 
 ENV NODE_ENV=production
 

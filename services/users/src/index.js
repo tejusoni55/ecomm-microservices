@@ -7,7 +7,7 @@ import authRoutes from './routes/auth.js';
 import { startGrpcServer, stopGrpcServer } from './grpc-server.js';
 
 const app = express();
-const PORT = process.env.SERVICE_PORT || 3001;
+const PORT = process.env.SERVICE_PORT || 8001;
 
 // Middleware
 app.use(express.json());

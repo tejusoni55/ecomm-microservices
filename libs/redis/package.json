@@ -1,0 +1,16 @@
+{
+  "name": "@ecomm/redis",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Redis client wrapper for caching and rate limiting",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./middleware": "./middleware.js"
+  },
+  "dependencies": {
+    "ioredis": "^5.8.2"
+  }
+}
+

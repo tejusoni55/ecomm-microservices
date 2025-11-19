@@ -9,7 +9,7 @@ import {
 import { startAllConsumers } from './kafka-consumers.js';
 
 const app = express();
-const PORT = process.env.SERVICE_PORT || 3005;
+const PORT = process.env.SERVICE_PORT || 8005;
 
 app.use(express.json());
 

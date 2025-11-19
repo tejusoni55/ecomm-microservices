@@ -14,7 +14,7 @@ The Notifications service listens to Kafka events from across the system and sen
 
 ```bash
 # Service configuration
-NOTIFICATIONS_PORT=3005
+NOTIFICATIONS_PORT=8005
 NODE_ENV=development
 LOG_LEVEL=debug
 
@@ -102,7 +102,7 @@ docker build -t notifications:latest .
 
 ### Docker Run
 ```bash
-docker run -p 3005:3005 \
+docker run -p 8005:8005 \
   -e KAFKA_BROKERS=kafka:9092 \
   -e MAILDEV_HOST=maildev \
   notifications:latest
