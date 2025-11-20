@@ -15,7 +15,7 @@ function getKafka() {
     logLevel: process.env.KAFKA_LOG_LEVEL === 'debug' ? logLevel.DEBUG : logLevel.INFO,
     ssl: process.env.NODE_ENV === 'production',
     sasl: process.env.KAFKA_SASL_ENABLED === 'true' ? {
-      mechanism: 'plain',
+      mechanism: (process.env.KAFKA_SASL_MECHANISM || 'plain').toLowerCase(),
       username: process.env.KAFKA_SASL_USERNAME,
       password: process.env.KAFKA_SASL_PASSWORD,
     } : undefined,

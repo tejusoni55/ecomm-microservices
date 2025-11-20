@@ -58,7 +58,12 @@ const server = app.listen(PORT, () => {
 
 // Start gRPC server
 const GRPC_PORT = parseInt(process.env.GRPC_PORT || '50051', 10);
-startGrpcServer(GRPC_PORT);
+try {
+  startGrpcServer(GRPC_PORT);
+} catch (error) {
+  logger.error('Failed to start gRPC server', { error: error.message });
+  process.exit(1);
+}
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {

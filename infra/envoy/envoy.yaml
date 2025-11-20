@@ -102,7 +102,7 @@ static_resources:
               - endpoint:
                   address:
                     socket_address:
-                      address: host.docker.internal
+                      address: users-service
                       port_value: 8001
 
     - name: products_service
@@ -116,7 +116,7 @@ static_resources:
               - endpoint:
                   address:
                     socket_address:
-                      address: host.docker.internal
+                      address: products-service
                       port_value: 8002
 
     - name: orders_service
@@ -130,7 +130,7 @@ static_resources:
               - endpoint:
                   address:
                     socket_address:
-                      address: host.docker.internal
+                      address: orders-service
                       port_value: 8003
 
     - name: payments_service
@@ -144,7 +144,7 @@ static_resources:
               - endpoint:
                   address:
                     socket_address:
-                      address: host.docker.internal
+                      address: payments-service
                       port_value: 8004
 
     - name: notifications_service
@@ -158,5 +158,5 @@ static_resources:
               - endpoint:
                   address:
                     socket_address:
-                      address: host.docker.internal
+                      address: notifications-service
                       port_value: 8005
