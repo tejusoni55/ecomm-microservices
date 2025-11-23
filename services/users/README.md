@@ -35,7 +35,7 @@ DB_PASSWORD=password
 DB_NAME=ecomm_dev
 
 # Service
-SERVICE_PORT=3001
+SERVICE_PORT=8001
 NODE_ENV=development
 LOG_LEVEL=debug
 
@@ -82,7 +82,7 @@ KAFKA_CLIENT_ID=users-service
    pnpm --filter users dev
    ```
 
-Service will start on http://localhost:3001
+Service will start on http://localhost:8001
 
 ## Testing
 
@@ -100,7 +100,7 @@ pnpm --filter users test:watch
 
 **Signup:**
 ```bash
-curl -X POST http://localhost:3001/auth/signup \
+curl -X POST http://localhost:8001/auth/signup \
   -H "Content-Type: application/json" \
   -d '{
     "email": "newuser@example.com",
@@ -112,7 +112,7 @@ curl -X POST http://localhost:3001/auth/signup \
 
 **Login:**
 ```bash
-curl -X POST http://localhost:3001/auth/login \
+curl -X POST http://localhost:8001/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "email": "admin@ecomm.local",
@@ -122,7 +122,7 @@ curl -X POST http://localhost:3001/auth/login \
 
 **Get Profile (with token):**
 ```bash
-curl -X GET http://localhost:3001/auth/me \
+curl -X GET http://localhost:8001/auth/me \
   -H "Authorization: Bearer <token>"
 ```
 
@@ -134,19 +134,20 @@ curl -X GET http://localhost:3001/auth/me \
 ## Database Migrations
 
 Create new migration:
-```bash
-npx knex migrate:make migration_name --knexfile src/knexfile.js
-```
+Create a new file in `src/migrations/` following the naming pattern `XXX_description.js` (e.g., `002_add_user_phone.js`).
+The migration should export an `up()` function that uses raw SQL with `getDb()` from `../db.js`.
 
 Run migrations:
 ```bash
-pnpm --filter users migrate:latest
+# Run all migrations for all services
+pnpm run migrate:all
+
+# Or run migrations manually
+node scripts/run-migrations.js
 ```
 
 Rollback migrations:
-```bash
-pnpm --filter users migrate:rollback
-```
+Rollbacks need to be done manually by running the `down()` function from the migration file, or by executing the rollback SQL directly.
 
 ## Docker Build
 
@@ -157,7 +158,7 @@ docker build -t ecomm-users:latest .
 
 Run container:
 ```bash
-docker run -p 3001:3001 --env-file .env ecomm-users:latest
+docker run -p 8001:8001 --env-file .env ecomm-users:latest
 ```
 
 ## What's Next?

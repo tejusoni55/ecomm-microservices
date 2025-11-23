@@ -1,22 +1,28 @@
 # Docker Compose configuration for local development with latest versions
-# Includes PostgreSQL 16, Redis 7, Kafka with KRaft (no Zookeeper), Maildev, and OpenTelemetry Collector
+# Includes PostgreSQL 17, Redis 7, Kafka with KRaft (no Zookeeper), Maildev, and OpenTelemetry Collector
 # BetterStack integration for logs and traces
 
 version: '3.8'
 
 services:
-  # PostgreSQL database (latest version 16)
+  # PostgreSQL database (latest version 17)
   postgres:
-    image: postgres:16-alpine
+    image: postgres:17-alpine
     container_name: ecomm-postgres
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
       POSTGRES_DB: ${DB_NAME:-ecomm_dev}
+      POSTGRES_PORT: ${DB_PORT:-5433}
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./libs/db/postgres-certs:/var/lib/postgresql/certs
+    command: >
+      postgres -c ssl=on
+               -c ssl_cert_file=/var/lib/postgresql/certs/server.crt
+               -c ssl_key_file=/var/lib/postgresql/certs/server.key
     networks:
       - ecomm-network
     healthcheck:
@@ -27,7 +33,7 @@ services:
 
   # Redis cache (latest version 7)
   redis:
-    image: redis:7-alpine
+    image: redis:8-alpine
     container_name: ecomm-redis
     ports:
       - "6379:6379"
@@ -42,54 +48,61 @@ services:
       retries: 5
 
   # Kafka message broker with KRaft mode (no Zookeeper needed)
-  # KRaft is the new consensus protocol that replaces Zookeeper
   kafka:
     image: confluentinc/cp-kafka:7.6.0
     container_name: ecomm-kafka
-    ports:
-      - "9092:9092"
-      - "9101:9101"
+    # NOTE: no 'ports' published to host -> no Windows host port binding required
     environment:
-      # KRaft mode configuration
       KAFKA_NODE_ID: 1
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
-      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092'
+      KAFKA_LISTENERS: 'PLAINTEXT://kafka:29092,CONTROLLER://kafka:29093,SASL_PLAINTEXT://0.0.0.0:9092'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:29092,SASL_PLAINTEXT://kafka:9092'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,SASL_PLAINTEXT:SASL_PLAINTEXT'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
       KAFKA_PROCESS_ROLES: 'broker,controller'
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:29093'
-      KAFKA_LISTENERS: 'PLAINTEXT://kafka:29092,CONTROLLER://kafka:29093,PLAINTEXT_HOST://0.0.0.0:9092'
-      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
       KAFKA_BROKER_RACK: 'MZone0'
-      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
       KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
       CLUSTER_ID: 'MkwQo83dQn2W_0DTbbVZbQ'
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
       KAFKA_LOG_RETENTION_HOURS: 24
       KAFKA_LOG_SEGMENT_BYTES: 1073741824
+      KAFKA_SASL_ENABLED_MECHANISMS: 'PLAIN'
+      KAFKA_SASL_MECHANISM_INTER_BROKER_PROTOCOL: 'PLAIN'
+      KAFKA_LISTENER_NAME_SASL_ENABLED_MECHANISMS_SASL_PLAINTEXT: 'PLAIN'
+      KAFKA_OPTS: '-Djava.security.auth.login.config=/etc/kafka/kafka_server_jaas.conf'
+      KAFKAJS_NO_PARTITIONER_WARNING: 1
     volumes:
       - kafka_data:/var/lib/kafka/data
+      - ./infra/kafka/kafka_server_jaas.conf:/etc/kafka/kafka_server_jaas.conf
+      - ./infra/kafka/client.properties:/etc/kafka/client.properties:ro
+    healthcheck:
+      test:
+        - "CMD"
+        - "/usr/bin/kafka-broker-api-versions"
+        - "--bootstrap-server"
+        - "localhost:9092"
+        - "--command-config"
+        - "/etc/kafka/client.properties"
+      interval: 10s
+      timeout: 10s
+      retries: 5
     networks:
       - ecomm-network
-    healthcheck:
-      test: ["CMD", "kafka-broker-api-versions.sh", "--bootstrap-server", "localhost:9092"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
+  
   # OpenTelemetry Collector (latest version with contrib)
   # Collects logs from Winston and sends to BetterStack
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.98.0
+    image: otel/opentelemetry-collector-contrib
     container_name: ecomm-otel-collector
     command:
       - "--config=/etc/otel-collector-config.yaml"
     volumes:
       - ./infra/otel-collector/config.yaml:/etc/otel-collector-config.yaml
     ports:
-      - "4317:4317"     # OTLP gRPC receiver (from services)
+      # - "4317:4317"     # OTLP gRPC receiver (from services)
       - "4318:4318"     # OTLP HTTP receiver (from services)
-      - "24224:24224"   # Fluent Forward receiver for logs from Winston
-      - "24224:24224/udp" # Fluent Forward UDP
     environment:
       BETTERSTACK_LOGS_TOKEN: ${BETTERSTACK_LOGS_TOKEN:-your-token-here}
       OTEL_SERVICE_NAME: ecomm-otel-collector
@@ -116,7 +129,7 @@ services:
 
   # Envoy proxy (API Gateway) - latest version
   envoy:
-    image: envoyproxy/envoy:v1.28-latest
+    image: envoyproxy/envoy:v1.31-latest
     container_name: ecomm-envoy
     command: /usr/local/bin/envoy -c /etc/envoy/envoy.yaml
     volumes:
@@ -124,6 +137,10 @@ services:
     ports:
       - "8000:8000"   # Main API Gateway port
       - "9901:9901"   # Admin interface
+    environment:
+      ENV: production
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - ecomm-network
     depends_on:
@@ -131,6 +148,189 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+
+  # Users service
+  users-service:
+    build:
+      context: .
+      dockerfile: ./services/users/Dockerfile
+    container_name: ecomm-users-service
+    image: ecomm-users-service:latest
+    networks:
+      - ecomm-network
+    depends_on:
+      - postgres
+      - kafka
+    environment:
+      - NODE_ENV=production
+      - DB_HOST=postgres
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASS=${DB_PASS:-password}
+      - DB_NAME=${DB_NAME:-ecomm_dev}
+      - KAFKA_BROKERS=kafka:9092
+      - KAFKA_CLIENT_ID=users-service
+      - KAFKA_GROUP_ID=users-service-group
+      - KAFKA_TOPIC_PREFIX=users-service
+      - KAFKA_TOPIC_POSTFIX=users-service
+      - KAFKA_TOPIC_PREFIX=users-service
+      - REDIS_URL=redis://redis:6379
+      - BETTERSTACK_LOGS_TOKEN=${BETTERSTACK_LOGS_TOKEN:-your-token-here}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318/v1/logs
+      - OTEL_SERVICE_NAME=users-service
+      - JWT_SECRET=eca50fe9f894dc57a3b5243c37762c61
+      - JWT_EXPIRY=1h
+      - KAFKA_SASL_ENABLED=true
+      - KAFKA_SASL_MECHANISM=plain
+      - KAFKA_SASL_USERNAME=admin
+      - KAFKA_SASL_PASSWORD=admin-secret
+      - GRPC_MTLS_ENABLED=true
+      - GRPC_USERS_ENDPOINT=users-service:50051
+      - GRPC_CA_CERT=../../scripts/certs/ca-cert.pem
+      - GRPC_SERVER_CERT=../../scripts/certs/users-service/server-cert.pem
+      - GRPC_SERVER_KEY=../../scripts/certs/users-service/server-key.pem
+      - DB_CA_CERT_PATH=../../libs/db/postgres-certs/server.crt
+
+  # Orders service
+  orders-service:
+    build:
+      context: .
+      dockerfile: ./services/orders/Dockerfile
+    container_name: ecomm-orders-service
+    image: ecomm-orders-service:latest
+    networks:
+      - ecomm-network
+    depends_on:
+      - users-service
+      - postgres
+      - kafka
+    environment:
+      - NODE_ENV=production
+      - DB_HOST=postgres
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASS=${DB_PASS:-password}
+      - DB_NAME=${DB_NAME:-ecomm_dev}
+      - KAFKA_BROKERS=kafka:9092
+      - KAFKA_CLIENT_ID=orders-service
+      - KAFKA_GROUP_ID=orders-service-group
+      - KAFKA_TOPIC_PREFIX=orders-service
+      - REDIS_URL=redis://redis:6379
+      - BETTERSTACK_LOGS_TOKEN=${BETTERSTACK_LOGS_TOKEN:-your-token-here}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318/v1/logs
+      - OTEL_SERVICE_NAME=orders-service
+      - JWT_SECRET=eca50fe9f894dc57a3b5243c37762c61
+      - JWT_EXPIRY=1h
+      - KAFKA_SASL_ENABLED=true
+      - KAFKA_SASL_MECHANISM=plain
+      - KAFKA_SASL_USERNAME=admin
+      - KAFKA_SASL_PASSWORD=admin-secret
+      - GRPC_MTLS_ENABLED=true
+      - GRPC_USERS_ENDPOINT=users-service:50051
+      - GRPC_CA_CERT=../../scripts/certs/ca-cert.pem
+      - GRPC_CLIENT_CERT=../../scripts/certs/orders-service/client-cert.pem
+      - GRPC_CLIENT_KEY=../../scripts/certs/orders-service/client-key.pem
+      - DB_CA_CERT_PATH=../../libs/db/postgres-certs/server.crt
+
+  # Products service
+  products-service:
+    build:
+      context: .
+      dockerfile: ./services/products/Dockerfile
+    container_name: ecomm-products-service
+    image: ecomm-products-service:latest
+    networks:
+      - ecomm-network
+    depends_on:
+      - postgres
+      - kafka
+    environment:
+      - NODE_ENV=production
+      - DB_HOST=postgres
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASS=${DB_PASS:-password}
+      - DB_NAME=${DB_NAME:-ecomm_dev}
+      - KAFKA_BROKERS=kafka:9092
+      - KAFKA_CLIENT_ID=products-service
+      - KAFKA_GROUP_ID=products-service-group
+      - KAFKA_TOPIC_PREFIX=products-service
+      - REDIS_URL=redis://redis:6379
+      - BETTERSTACK_LOGS_TOKEN=${BETTERSTACK_LOGS_TOKEN:-your-token-here}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318/v1/logs
+      - OTEL_SERVICE_NAME=products-service
+      - JWT_SECRET=eca50fe9f894dc57a3b5243c37762c61
+      - JWT_EXPIRY=1h
+      - KAFKA_SASL_ENABLED=true
+      - KAFKA_SASL_MECHANISM=plain
+      - KAFKA_SASL_USERNAME=admin
+      - KAFKA_SASL_PASSWORD=admin-secret
+      - DB_CA_CERT_PATH=../../libs/db/postgres-certs/server.crt
+
+  # Notifications service
+  notifications-service:
+    build:
+      context: .
+      dockerfile: ./services/notifications/Dockerfile
+    container_name: ecomm-notifications-service
+    image: ecomm-notifications-service:latest
+    networks:
+      - ecomm-network
+    depends_on:
+      - postgres
+      - kafka
+    environment:
+      - NODE_ENV=production
+      - DB_HOST=postgres
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASS=${DB_PASS:-password}
+      - DB_NAME=${DB_NAME:-ecomm_dev}
+      - KAFKA_BROKERS=kafka:9092
+      - KAFKA_CLIENT_ID=notifications-service
+      - KAFKA_GROUP_ID=notifications-service-group
+      - KAFKA_TOPIC_PREFIX=notifications-service
+      - REDIS_URL=redis://redis:6379
+      - BETTERSTACK_LOGS_TOKEN=${BETTERSTACK_LOGS_TOKEN:-your-token-here}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318/v1/logs
+      - OTEL_SERVICE_NAME=notifications-service
+      - JWT_SECRET=eca50fe9f894dc57a3b5243c37762c61
+      - JWT_EXPIRY=1h
+      - KAFKA_SASL_ENABLED=true
+      - KAFKA_SASL_MECHANISM=plain
+      - KAFKA_SASL_USERNAME=admin
+      - KAFKA_SASL_PASSWORD=admin-secret
+      - DB_CA_CERT_PATH=../../libs/db/postgres-certs/server.crt
+
+  # Payments service
+  payments-service:
+    build:
+      context: .
+      dockerfile: ./services/payments/Dockerfile
+    container_name: ecomm-payments-service
+    image: ecomm-payments-service:latest
+    networks:
+      - ecomm-network
+    depends_on:
+      - postgres
+      - kafka
+    environment:
+      - NODE_ENV=production
+      - DB_HOST=postgres
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASS=${DB_PASS:-password}
+      - DB_NAME=${DB_NAME:-ecomm_dev}
+      - KAFKA_BROKERS=kafka:9092
+      - KAFKA_CLIENT_ID=payments-service
+      - KAFKA_GROUP_ID=payments-service-group
+      - KAFKA_TOPIC_PREFIX=payments-service
+      - REDIS_URL=redis://redis:6379
+      - BETTERSTACK_LOGS_TOKEN=${BETTERSTACK_LOGS_TOKEN:-your-token-here}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318/v1/logs
+      - OTEL_SERVICE_NAME=payments-service
+      - JWT_SECRET=eca50fe9f894dc57a3b5243c37762c61
+      - JWT_EXPIRY=1h
+      - KAFKA_SASL_ENABLED=true
+      - KAFKA_SASL_MECHANISM=plain
+      - KAFKA_SASL_USERNAME=admin
+      - KAFKA_SASL_PASSWORD=admin-secret
+      - DB_CA_CERT_PATH=../../libs/db/postgres-certs/server.crt
 
 networks:
   ecomm-network:

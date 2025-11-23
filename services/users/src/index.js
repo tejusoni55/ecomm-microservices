@@ -7,7 +7,7 @@ import authRoutes from './routes/auth.js';
 import { startGrpcServer, stopGrpcServer } from './grpc-server.js';
 
 const app = express();
-const PORT = process.env.SERVICE_PORT || 3001;
+const PORT = process.env.SERVICE_PORT || 8001;
 
 // Middleware
 app.use(express.json());
@@ -58,7 +58,12 @@ const server = app.listen(PORT, () => {
 
 // Start gRPC server
 const GRPC_PORT = parseInt(process.env.GRPC_PORT || '50051', 10);
-startGrpcServer(GRPC_PORT);
+try {
+  startGrpcServer(GRPC_PORT);
+} catch (error) {
+  logger.error('Failed to start gRPC server', { error: error.message });
+  process.exit(1);
+}
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {

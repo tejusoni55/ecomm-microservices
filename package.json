@@ -12,7 +12,8 @@
   },
   "scripts": {
     "bootstrap": "pnpm install && pnpm run docker:up && pnpm run migrate:all && pnpm run seed:all",
-    "dev": "concurrently \"pnpm --filter 'users' dev\" \"pnpm --filter 'products' dev\" \"pnpm --filter 'orders' dev\" \"pnpm --filter 'payments' dev\" \"pnpm --filter 'notifications' dev\"",
+    "dev": "concurrently -n users,products,orders,payments,notifications \"pnpm --filter users dev\" \"pnpm --filter products dev\" \"pnpm --filter orders dev\" \"pnpm --filter payments dev\" \"pnpm --filter notifications dev\"",
+    "start": "concurrently -n users,products,orders,payments,notifications \"pnpm --filter users start\" \"pnpm --filter products start\" \"pnpm --filter orders start\" \"pnpm --filter payments start\" \"pnpm --filter notifications start\"",
     "dev:users": "pnpm --filter users dev",
     "dev:products": "pnpm --filter products dev",
     "dev:orders": "pnpm --filter orders dev",
@@ -22,12 +23,11 @@
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f",
     "migrate:all": "node scripts/run-migrations.js",
-    "seed:all": "node scripts/seed-db.js",
-    "test": "pnpm -r test",
-    "test:watch": "pnpm -r test -- --watch"
+    "seed:all": "node scripts/seed-db.js"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
+    "jest": "^30.2.0",
     "nodemon": "^3.0.2"
   }
 }

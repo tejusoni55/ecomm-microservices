@@ -1,50 +1,34 @@
-# Notifications Microservice - Dockerfile
-# Multi-stage build for optimal image size
-
-# Stage 1: Build
-FROM node:18-alpine AS builder
-
+# Multi-stage Dockerfile for users service
+FROM node:20-alpine as builder
 WORKDIR /app
 
-# Copy package files
-COPY package.json pnpm-lock.yaml ./
-COPY ../../pnpm-workspace.yaml .
-COPY ../../libs ./libs
+# Enable pnpm
+RUN corepack enable && corepack prepare pnpm@10.22.0 --activate
 
-# Install dependencies
-RUN npm install -g pnpm && pnpm install --frozen-lockfile
+# Copy core workspace definition files
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 
-# Copy source code
-COPY . .
+# Copy source directories
+COPY libs ./libs
+COPY infra ./infra
+COPY services/notifications ./services/notifications
 
-# Stage 2: Runtime
-FROM node:18-alpine
+# Install dependencies for the entire workspace
+RUN pnpm install --frozen-lockfile
 
+# Production stage
+FROM node:20-alpine
 WORKDIR /app
 
-# Install dumb-init for proper signal handling
-RUN apk add --no-cache dumb-init
+RUN corepack enable && corepack prepare pnpm@10.20.0 --activate
 
-# Copy from builder
+# Copy node_modules and all sources from builder
 COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package.json .
-COPY --from=builder /app/src ./src
+COPY --from=builder /app/libs ./libs
+COPY --from=builder /app/services/notifications/ ./services/notifications/
+COPY --from=builder /app/services/notifications/.env.example ./services/notifications/.env
 
-# Non-root user for security
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodejs -u 1001
-
-USER nodejs
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
-    CMD node -e "require('http').get('http://localhost:3005/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
-
-# Use dumb-init to handle signals properly
-ENTRYPOINT ["dumb-init", "--"]
-
-# Start the application
-CMD ["node", "src/index.js"]
-
-# Expose port
-EXPOSE 3005
+WORKDIR /app/services/notifications
+EXPOSE 8005
+ENV NODE_ENV=production
+CMD ["pnpm", "start"]

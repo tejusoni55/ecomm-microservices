@@ -1,30 +1,36 @@
 # Multi-stage Dockerfile for users service
-FROM node:18-alpine as builder
-
+FROM node:20-alpine as builder
 WORKDIR /app
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-RUN npm install -g pnpm && pnpm install --frozen-lockfile
 
-COPY . .
+# Enable pnpm
+RUN corepack enable && corepack prepare pnpm@10.22.0 --activate
+
+# Copy core workspace definition files
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
+
+# Copy source directories
+COPY libs ./libs
+COPY infra ./infra
+COPY services/users ./services/users
+# COPY scripts ./scripts
+
+# Install dependencies for the entire workspace
+RUN pnpm install --frozen-lockfile
 
 # Production stage
-FROM node:18-alpine
-
+FROM node:20-alpine
 WORKDIR /app
 
-RUN npm install -g pnpm
+RUN corepack enable && corepack prepare pnpm@10.20.0 --activate
 
+# Copy node_modules and all sources from builder
 COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/pnpm-lock.yaml ./
-COPY --from=builder /app/package.json ./
-
-COPY services/users ./services/users
-COPY libs ./libs
+COPY --from=builder /app/libs ./libs
+COPY --from=builder /app/services/users/ ./services/users/
+# COPY --from=builder /app/scripts ./scripts
+COPY --from=builder /app/services/users/.env.example ./services/users/.env
 
 WORKDIR /app/services/users
-
-EXPOSE 3001
-
+EXPOSE 8001
 ENV NODE_ENV=production
-
-CMD ["node", "src/index.js"]
+CMD ["pnpm", "start"]

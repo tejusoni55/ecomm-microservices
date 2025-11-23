@@ -8,11 +8,11 @@ This project is designed as a **learning platform** and foundation for exploring
 
 | Service | Purpose | Port | Key Technologies |
 |---------|---------|------|-------------------|
-| **Users** | Authentication, JWT, user management | 3001 | Express, bcrypt, JWT |
-| **Products** | Product catalog, listing, filtering | 3002 | Express, Image upload |
-| **Orders** | Order management, order lifecycle | 3003 | Express, gRPC client, Kafka |
-| **Payments** | Payment simulation, event handling | 3004 | Express, Kafka consumer, random failures |
-| **Notifications** | Email notifications via Kafka | 3005 | Express, Nodemailer, Maildev, Kafka |
+| **Users** | Authentication, JWT, user management | 8001 | Express, bcrypt, JWT |
+| **Products** | Product catalog, listing, filtering | 8002 | Express, Image upload |
+| **Orders** | Order management, order lifecycle | 8003 | Express, gRPC client, Kafka |
+| **Payments** | Payment simulation, event handling | 8004 | Express, Kafka consumer, random failures |
+| **Notifications** | Email notifications via Kafka | 8005 | Express, Nodemailer, Maildev, Kafka |
 
 ---
 
@@ -32,7 +32,7 @@ This project is designed as a **learning platform** and foundation for exploring
 ### Supporting Infrastructure
 - **PostgreSQL**: Main database
 - **Redis**: Caching layer
-- **Kafka + Zookeeper**: Event streaming
+- **Kafka with KRaft**: Event streaming
 - **Maildev**: Email testing (local dev)
 - **OpenTelemetry**: Distributed tracing
 - **Envoy**: API Gateway
@@ -104,11 +104,11 @@ pnpm dev:notifications
 
 ```bash
 # Health check
-curl http://localhost:3001/health
+curl http://localhost:8001/health
 # Expected: { "status": "ok", "service": "users" }
 
 # Create new user
-curl -X POST http://localhost:3001/auth/signup \
+curl -X POST http://localhost:8001/auth/signup \
   -H "Content-Type: application/json" \
   -d '{
     "email": "demo@example.com",

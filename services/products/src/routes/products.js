@@ -1,16 +1,19 @@
 // Products service: list and filter products (raw SQL with pg)
-import express from 'express';
-import { getDb } from '@ecomm/db';
-import logger from '@ecomm/logger';
-import { requireAuth, requireAdmin } from '../middleware/auth.js';
-import { publishProductCreated, publishProductUpdated } from '../kafka-producer.js';
+import express from "express";
+import { getDb } from "@ecomm/db";
+import logger from "@ecomm/logger";
+import { requireAuth, requireAdmin } from "../middleware/auth.js";
+import {
+  publishProductCreated,
+  publishProductUpdated,
+} from "../kafka-producer.js";
 
 const router = express.Router();
 
 // GET / - List all products with optional filtering
-router.get('/', async (req, res) => {
+router.get("/", async (req, res) => {
   try {
-    const { page = 1, limit = 20, search, status = 'active' } = req.query;
+    const { page = 1, limit = 20, search, status = "active" } = req.query;
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.max(1, parseInt(limit, 10) || 20);
     const offset = (pageNum - 1) * limitNum;
@@ -26,12 +29,20 @@ router.get('/', async (req, res) => {
     if (search) {
       params.push(`%${search}%`);
       params.push(`%${search}%`);
-      whereClauses.push(`(name ILIKE $${params.length - 1} OR description ILIKE $${params.length})`);
+      whereClauses.push(
+        `(name ILIKE $${params.length - 1} OR description ILIKE $${
+          params.length
+        })`
+      );
     }
 
-    const whereSql = whereClauses.length ? `WHERE ${whereClauses.join(' AND ')}` : '';
+    const whereSql = whereClauses.length
+      ? `WHERE ${whereClauses.join(" AND ")}`
+      : "";
 
-    const listSql = `SELECT * FROM products ${whereSql} ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    const listSql = `SELECT * FROM products ${whereSql} ORDER BY created_at DESC LIMIT $${
+      params.length + 1
+    } OFFSET $${params.length + 2}`;
     params.push(limitNum, offset);
 
     const { rows: products } = await pool.query(listSql, params);
@@ -52,53 +63,70 @@ router.get('/', async (req, res) => {
       },
     });
   } catch (error) {
-    logger.error('Error listing products', { error: error.message });
-    res.status(500).json({ error: 'Internal server error' });
+    logger.error("Error listing products", { error: error.message });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
 // GET /:id - Get single product
-router.get('/:id', async (req, res) => {
+router.get("/:id", async (req, res) => {
   try {
     const pool = getDb();
-    const { rows } = await pool.query('SELECT * FROM products WHERE id = $1', [req.params.id]);
+    const { rows } = await pool.query("SELECT * FROM products WHERE id = $1", [
+      req.params.id,
+    ]);
     const product = rows[0];
 
     if (!product) {
-      return res.status(404).json({ error: 'Product not found' });
+      return res.status(404).json({ error: "Product not found" });
     }
 
     res.json(product);
   } catch (error) {
-    logger.error('Error getting product', { error: error.message });
-    res.status(500).json({ error: 'Internal server error' });
+    logger.error("Error getting product", { error: error.message });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
 // POST / - Create new product (admin only)
-router.post('/', requireAuth, requireAdmin, async (req, res) => {
+router.post("/", requireAuth, requireAdmin, async (req, res) => {
   try {
-    const { name, description, price, stock, sku, image_url, status = 'active' } = req.body;
+    const {
+      name,
+      description,
+      price,
+      stock,
+      sku,
+      image_url,
+      status = "active",
+    } = req.body;
 
     // Validation
     if (!name || !price || !sku) {
-      return res.status(400).json({ error: 'Name, price, and SKU are required' });
+      return res
+        .status(400)
+        .json({ error: "Name, price, and SKU are required" });
     }
 
     if (price <= 0) {
-      return res.status(400).json({ error: 'Price must be greater than 0' });
+      return res.status(400).json({ error: "Price must be greater than 0" });
     }
 
     if (stock < 0) {
-      return res.status(400).json({ error: 'Stock cannot be negative' });
+      return res.status(400).json({ error: "Stock cannot be negative" });
     }
 
     const pool = getDb();
 
     // Check if SKU already exists
-    const existingProduct = await pool.query('SELECT id FROM products WHERE sku = $1', [sku]);
+    const existingProduct = await pool.query(
+      "SELECT id FROM products WHERE sku = $1",
+      [sku]
+    );
     if (existingProduct.rows.length > 0) {
-      return res.status(409).json({ error: 'Product with this SKU already exists' });
+      return res
+        .status(409)
+        .json({ error: "Product with this SKU already exists" });
     }
 
     // Insert product
@@ -122,20 +150,22 @@ router.post('/', requireAuth, requireAdmin, async (req, res) => {
     // Publish product.created event
     await publishProductCreated(product);
 
-    logger.info(`Product created: ${product.name} (ID: ${product.id}, SKU: ${sku})`);
+    logger.info(
+      `Product created: ${product.name} (ID: ${product.id}, SKU: ${sku})`
+    );
 
     res.status(201).json({
-      message: 'Product created successfully',
+      message: "Product created successfully",
       product,
     });
   } catch (error) {
-    logger.error('Error creating product', { error: error.message });
-    res.status(500).json({ error: 'Internal server error' });
+    logger.error("Error creating product", { error: error.message });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
 // PUT /:id - Update product (admin only)
-router.put('/:id', requireAuth, requireAdmin, async (req, res) => {
+router.put("/:id", requireAuth, requireAdmin, async (req, res) => {
   try {
     const { name, description, price, stock, image_url, status } = req.body;
     const productId = req.params.id;
@@ -143,9 +173,12 @@ router.put('/:id', requireAuth, requireAdmin, async (req, res) => {
     const pool = getDb();
 
     // Check if product exists
-    const existingProduct = await pool.query('SELECT * FROM products WHERE id = $1', [productId]);
+    const existingProduct = await pool.query(
+      "SELECT * FROM products WHERE id = $1",
+      [productId]
+    );
     if (existingProduct.rows.length === 0) {
-      return res.status(404).json({ error: 'Product not found' });
+      return res.status(404).json({ error: "Product not found" });
     }
 
     // Build update query dynamically
@@ -163,14 +196,14 @@ router.put('/:id', requireAuth, requireAdmin, async (req, res) => {
     }
     if (price !== undefined) {
       if (price <= 0) {
-        return res.status(400).json({ error: 'Price must be greater than 0' });
+        return res.status(400).json({ error: "Price must be greater than 0" });
       }
       updates.push(`price = $${paramIndex++}`);
       values.push(price);
     }
     if (stock !== undefined) {
       if (stock < 0) {
-        return res.status(400).json({ error: 'Stock cannot be negative' });
+        return res.status(400).json({ error: "Stock cannot be negative" });
       }
       updates.push(`stock = $${paramIndex++}`);
       values.push(stock);
@@ -180,15 +213,17 @@ router.put('/:id', requireAuth, requireAdmin, async (req, res) => {
       values.push(image_url);
     }
     if (status !== undefined) {
-      if (!['active', 'inactive'].includes(status)) {
-        return res.status(400).json({ error: 'Status must be "active" or "inactive"' });
+      if (!["active", "inactive"].includes(status)) {
+        return res
+          .status(400)
+          .json({ error: 'Status must be "active" or "inactive"' });
       }
       updates.push(`status = $${paramIndex++}`);
       values.push(status);
     }
 
     if (updates.length === 0) {
-      return res.status(400).json({ error: 'No fields to update' });
+      return res.status(400).json({ error: "No fields to update" });
     }
 
     // Add updated_at and product id
@@ -197,7 +232,7 @@ router.put('/:id', requireAuth, requireAdmin, async (req, res) => {
 
     const updateSql = `
       UPDATE products
-      SET ${updates.join(', ')}
+      SET ${updates.join(", ")}
       WHERE id = $${paramIndex}
       RETURNING *
     `;
@@ -211,12 +246,12 @@ router.put('/:id', requireAuth, requireAdmin, async (req, res) => {
     logger.info(`Product updated: ${product.name} (ID: ${product.id})`);
 
     res.json({
-      message: 'Product updated successfully',
+      message: "Product updated successfully",
       product,
     });
   } catch (error) {
-    logger.error('Error updating product', { error: error.message });
-    res.status(500).json({ error: 'Internal server error' });
+    logger.error("Error updating product", { error: error.message });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 

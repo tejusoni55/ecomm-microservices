@@ -1,28 +1,39 @@
-// Orders service migration: create orders and order items tables
-export async function up(knex) {
+// Orders service migration: create orders and order items tables (raw SQL)
+import { getDb } from '../db.js';
+
+export async function up() {
+  const db = getDb();
+  
   // Orders table
-  await knex.schema.createTable('orders', (table) => {
-    table.increments('id').primary();
-    table.integer('user_id').notNullable();
-    table.decimal('total', 10, 2).defaultTo(0);
-    table.enum('status', ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled']).defaultTo('pending');
-    table.text('notes');
-    table.timestamps(true, true);
-  });
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS orders (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      total DECIMAL(10, 2) DEFAULT 0,
+      status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'shipped', 'delivered', 'cancelled')),
+      notes TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 
   // Order items table
-  return knex.schema.createTable('order_items', (table) => {
-    table.increments('id').primary();
-    table.integer('order_id').notNullable().references('id').inTable('orders').onDelete('CASCADE');
-    table.integer('product_id').notNullable();
-    table.integer('quantity').notNullable();
-    table.decimal('unit_price', 10, 2).notNullable();
-    table.decimal('subtotal', 10, 2).notNullable();
-    table.timestamps(true, true);
-  });
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS order_items (
+      id SERIAL PRIMARY KEY,
+      order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+      product_id INTEGER NOT NULL,
+      quantity INTEGER NOT NULL,
+      unit_price DECIMAL(10, 2) NOT NULL,
+      subtotal DECIMAL(10, 2) NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 }
 
-export async function down(knex) {
-  await knex.schema.dropTableIfExists('order_items');
-  return knex.schema.dropTableIfExists('orders');
+export async function down() {
+  const db = getDb();
+  await db.query('DROP TABLE IF EXISTS order_items');
+  await db.query('DROP TABLE IF EXISTS orders');
 }

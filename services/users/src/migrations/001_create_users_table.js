@@ -1,17 +1,25 @@
-// Users service database migration: create users table
-export async function up(knex) {
-  return knex.schema.createTable('users', (table) => {
-    table.increments('id').primary();
-    table.string('email', 255).notNullable().unique();
-    table.string('password_hash', 255).notNullable();
-    table.string('first_name', 100);
-    table.string('last_name', 100);
-    table.enum('role', ['consumer', 'admin']).defaultTo('consumer');
-    table.boolean('is_active').defaultTo(true);
-    table.timestamps(true, true);
-  });
+// Users service database migration: create users table (raw SQL)
+import { getDb } from '../db.js';
+
+export async function up() {
+  const db = getDb();
+  
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      email VARCHAR(255) NOT NULL UNIQUE,
+      password_hash VARCHAR(255) NOT NULL,
+      first_name VARCHAR(100),
+      last_name VARCHAR(100),
+      role VARCHAR(20) DEFAULT 'consumer' CHECK (role IN ('consumer', 'admin')),
+      is_active BOOLEAN DEFAULT true,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 }
 
-export async function down(knex) {
-  return knex.schema.dropTableIfExists('users');
+export async function down() {
+  const db = getDb();
+  await db.query('DROP TABLE IF EXISTS users');
 }

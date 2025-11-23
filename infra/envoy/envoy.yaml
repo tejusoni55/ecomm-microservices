@@ -27,40 +27,63 @@ static_resources:
                     - name: backend
                       domains: ["*"]
                       routes:
-                        # Users Service routes
+                        # Users Service routes (auth endpoints)
                         - match:
-                            prefix: "/api/users"
+                            prefix: "/api/auth"
                           route:
                             cluster: users_service
-                            prefix_rewrite: "/"
+                            prefix_rewrite: "/auth"
                         
                         # Products Service routes
                         - match:
                             prefix: "/api/products"
                           route:
                             cluster: products_service
-                            prefix_rewrite: "/"
+                            prefix_rewrite: "/products"
                         
                         # Orders Service routes
                         - match:
                             prefix: "/api/orders"
                           route:
                             cluster: orders_service
-                            prefix_rewrite: "/"
+                            prefix_rewrite: "/orders"
                         
                         # Payments Service routes
                         - match:
-                            prefix: "/api/payments"
+                            path: "/payments/process-payment"
+                          route:
+                            cluster: payments_service
+                            prefix_rewrite: "/process-payment"
+                        - match:
+                            prefix: "/payments/status"
+                          route:
+                            cluster: payments_service
+                            prefix_rewrite: "/status"
+                        - match:
+                            prefix: "/payments"
                           route:
                             cluster: payments_service
                             prefix_rewrite: "/"
                         
                         # Notifications Service routes
                         - match:
-                            prefix: "/api/notifications"
+                            prefix: "/notifications"
                           route:
                             cluster: notifications_service
                             prefix_rewrite: "/"
+                        
+                        # Health check routes (pass through to services)
+                        - match:
+                            prefix: "/health"
+                          route:
+                            cluster: users_service
+                            prefix_rewrite: "/health"
+                        
+                        - match:
+                            prefix: "/ready"
+                          route:
+                            cluster: users_service
+                            prefix_rewrite: "/ready"
                 
                 http_filters:
                   - name: envoy.filters.http.router
@@ -71,6 +94,7 @@ static_resources:
     - name: users_service
       type: STRICT_DNS
       connect_timeout: 0.25s
+      dns_lookup_family: V4_ONLY
       load_assignment:
         cluster_name: users_service
         endpoints:
@@ -78,12 +102,13 @@ static_resources:
               - endpoint:
                   address:
                     socket_address:
-                      address: host.docker.internal
-                      port_value: 3001
+                      address: users-service
+                      port_value: 8001
 
     - name: products_service
       type: STRICT_DNS
       connect_timeout: 0.25s
+      dns_lookup_family: V4_ONLY
       load_assignment:
         cluster_name: products_service
         endpoints:
@@ -91,12 +116,13 @@ static_resources:
               - endpoint:
                   address:
                     socket_address:
-                      address: host.docker.internal
-                      port_value: 3002
+                      address: products-service
+                      port_value: 8002
 
     - name: orders_service
       type: STRICT_DNS
       connect_timeout: 0.25s
+      dns_lookup_family: V4_ONLY
       load_assignment:
         cluster_name: orders_service
         endpoints:
@@ -104,12 +130,13 @@ static_resources:
               - endpoint:
                   address:
                     socket_address:
-                      address: host.docker.internal
-                      port_value: 3003
+                      address: orders-service
+                      port_value: 8003
 
     - name: payments_service
       type: STRICT_DNS
       connect_timeout: 0.25s
+      dns_lookup_family: V4_ONLY
       load_assignment:
         cluster_name: payments_service
         endpoints:
@@ -117,12 +144,13 @@ static_resources:
               - endpoint:
                   address:
                     socket_address:
-                      address: host.docker.internal
-                      port_value: 3004
+                      address: payments-service
+                      port_value: 8004
 
     - name: notifications_service
       type: STRICT_DNS
       connect_timeout: 0.25s
+      dns_lookup_family: V4_ONLY
       load_assignment:
         cluster_name: notifications_service
         endpoints:
@@ -130,5 +158,5 @@ static_resources:
               - endpoint:
                   address:
                     socket_address:
-                      address: host.docker.internal
-                      port_value: 3005
+                      address: notifications-service
+                      port_value: 8005

@@ -1,8 +1,14 @@
-// Products service seed: sample products
-export async function seed(knex) {
-  await knex('products').del();
+// Products service seed: sample products (raw SQL)
+import { getDb } from '@ecomm/db';
 
-  await knex('products').insert([
+export async function seed() {
+  const db = getDb();
+  
+  // Delete existing entries
+  await db.query('DELETE FROM products');
+
+  // Insert seed data
+  const products = [
     {
       name: 'Laptop Pro 15',
       description: 'High-performance laptop with 16GB RAM',
@@ -43,5 +49,13 @@ export async function seed(knex) {
       sku: 'MONITOR-001',
       status: 'active',
     },
-  ]);
+  ];
+
+  for (const product of products) {
+    await db.query(
+      `INSERT INTO products (name, description, price, stock, sku, status)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [product.name, product.description, product.price, product.stock, product.sku, product.status]
+    );
+  }
 }

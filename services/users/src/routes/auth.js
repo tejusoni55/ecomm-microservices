@@ -25,8 +25,8 @@ router.post('/signup', async (req, res) => {
     const db = getDb();
 
     // Check if user already exists
-    const existingUser = await db('users').where('email', email).first();
-    if (existingUser) {
+    const existingUserResult = await db.query('SELECT id FROM users WHERE email = $1', [email]);
+    if (existingUserResult.rows.length > 0) {
       return res.status(409).json({ error: 'User with this email already exists' });
     }
 
@@ -34,16 +34,17 @@ router.post('/signup', async (req, res) => {
     const password_hash = await bcrypt.hash(password, 10);
 
     // Create user
-    const [userId] = await db('users').insert({
-      email,
-      password_hash,
-      first_name: first_name || null,
-      last_name: last_name || null,
-      role: 'consumer',
-      is_active: true,
-    });
+    const insertResult = await db.query(
+      `INSERT INTO users (email, password_hash, first_name, last_name, role, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id`,
+      [email, password_hash, first_name || null, last_name || null, 'consumer', true]
+    );
+    const userId = insertResult.rows[0].id;
 
-    const user = await db('users').where('id', userId).first();
+    // Get created user
+    const userResult = await db.query('SELECT * FROM users WHERE id = $1', [userId]);
+    const user = userResult.rows[0];
 
     // Publish user.created event to Kafka
     await publishUserCreated(user);
@@ -86,10 +87,11 @@ router.post('/login', async (req, res) => {
     const db = getDb();
 
     // Find user
-    const user = await db('users').where('email', email).first();
-    if (!user) {
+    const userResult = await db.query('SELECT * FROM users WHERE email = $1', [email]);
+    if (userResult.rows.length === 0) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
+    const user = userResult.rows[0];
 
     // Verify password
     const passwordMatch = await bcrypt.compare(password, user.password_hash);
@@ -138,11 +140,12 @@ router.get('/me', async (req, res) => {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
     const db = getDb();
-    const user = await db('users').where('id', decoded.id).first();
+    const userResult = await db.query('SELECT * FROM users WHERE id = $1', [decoded.id]);
 
-    if (!user) {
+    if (userResult.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
+    const user = userResult.rows[0];
 
     res.json({
       user: {

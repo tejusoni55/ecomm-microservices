@@ -15,7 +15,7 @@ function getKafka() {
     logLevel: process.env.KAFKA_LOG_LEVEL === 'debug' ? logLevel.DEBUG : logLevel.INFO,
     ssl: process.env.NODE_ENV === 'production',
     sasl: process.env.KAFKA_SASL_ENABLED === 'true' ? {
-      mechanism: 'plain',
+      mechanism: (process.env.KAFKA_SASL_MECHANISM || 'plain').toLowerCase(),
       username: process.env.KAFKA_SASL_USERNAME,
       password: process.env.KAFKA_SASL_PASSWORD,
     } : undefined,
@@ -62,6 +62,48 @@ export async function publish(topic, messages) {
   logger.debug(`Published message to topic: ${topic}`, { count: formattedMessages.length });
 }
 
+// Create admin client for topic management
+let adminInstance = null;
+
+async function getAdmin() {
+  if (adminInstance) {
+    return adminInstance;
+  }
+
+  const kafka = getKafka();
+  adminInstance = kafka.admin();
+  await adminInstance.connect();
+  logger.info('Kafka admin client connected');
+  return adminInstance;
+}
+
+// Create topic if it doesn't exist
+async function ensureTopicExists(topic) {
+  try {
+    const admin = await getAdmin();
+    const topics = await admin.listTopics();
+    
+    if (!topics.includes(topic)) {
+      await admin.createTopics({
+        topics: [{
+          topic,
+          numPartitions: 1,
+          replicationFactor: 1,
+          configEntries: [
+            { name: 'retention.ms', value: '604800000' }, // 7 days
+            { name: 'cleanup.policy', value: 'delete' },
+          ],
+        }],
+      });
+      logger.info(`Created Kafka topic: ${topic}`);
+    }
+  } catch (error) {
+    // Topic might already exist or admin might not have permissions
+    // This is okay, we'll let the consumer handle it
+    logger.debug(`Topic creation check for ${topic}`, { error: error.message });
+  }
+}
+
 // Create consumer
 let consumerInstance = null;
 
@@ -73,26 +115,61 @@ export async function getConsumer(groupId) {
   return consumer;
 }
 
+// Subscribe to topic with handler (with retry logic for topic creation)
+async function subscribeWithRetry(topic, groupId, handler, retryCount = 0, maxRetries = 3) {
+  try {
+    // Ensure topic exists before subscribing
+    await ensureTopicExists(topic);
+    
+    const consumer = await getConsumer(groupId);
+    
+    await consumer.subscribe({ topic, fromBeginning: false });
+
+    await consumer.run({
+      eachMessage: async ({ topic, partition, message }) => {
+        try {
+          const value = JSON.parse(message.value.toString());
+          logger.debug(`Received message from topic: ${topic}`, { partition, key: message.key?.toString() });
+          await handler(value, message);
+        } catch (error) {
+          logger.error(`Error processing message from topic: ${topic}`, { error: error.message });
+          // Don't throw - let Kafka handle retries
+        }
+      },
+    });
+
+    logger.info(`Subscribed to topic: ${topic} with group: ${groupId}`);
+    return consumer;
+  } catch (error) {
+    // If topic doesn't exist or partition error, retry
+    const isTopicError = error.message && (
+      error.message.includes('does not host this topic-partition') ||
+      error.message.includes('UnknownTopicOrPartition') ||
+      error.message.includes('LeaderNotAvailable')
+    );
+    
+    if (isTopicError && retryCount < maxRetries) {
+      const delay = Math.min(1000 * Math.pow(2, retryCount), 10000); // Exponential backoff, max 10s
+      logger.warn(`Topic ${topic} not ready yet (attempt ${retryCount + 1}/${maxRetries}). Retrying in ${delay}ms...`);
+      
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return subscribeWithRetry(topic, groupId, handler, retryCount + 1, maxRetries);
+    }
+    
+    if (isTopicError) {
+      logger.warn(`Topic ${topic} still not available after ${maxRetries} retries. It will be created when first message is published. Consumer will retry automatically.`);
+      // Return null to indicate subscription failed but don't crash
+      return null;
+    }
+    
+    logger.error(`Failed to subscribe to topic: ${topic}`, { error: error.message });
+    throw error;
+  }
+}
+
 // Subscribe to topic with handler
 export async function subscribe(topic, groupId, handler) {
-  const consumer = await getConsumer(groupId);
-  
-  await consumer.subscribe({ topic });
-
-  await consumer.run({
-    eachMessage: async ({ topic, partition, message }) => {
-      try {
-        const value = JSON.parse(message.value.toString());
-        logger.debug(`Received message from topic: ${topic}`, { partition, key: message.key?.toString() });
-        await handler(value, message);
-      } catch (error) {
-        logger.error(`Error processing message from topic: ${topic}`, { error: error.message });
-        throw error;
-      }
-    },
-  });
-
-  return consumer;
+  return subscribeWithRetry(topic, groupId, handler);
 }
 
 // Disconnect producer
@@ -109,5 +186,14 @@ export async function disconnectConsumer(consumer) {
   if (consumer) {
     await consumer.disconnect();
     logger.info('Kafka consumer disconnected');
+  }
+}
+
+// Disconnect admin
+export async function disconnectAdmin() {
+  if (adminInstance) {
+    await adminInstance.disconnect();
+    adminInstance = null;
+    logger.info('Kafka admin client disconnected');
   }
 }

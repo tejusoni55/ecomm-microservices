@@ -1,26 +1,5 @@
 // Logger library: Winston-based structured logging with OpenTelemetry support
-// Sends logs to OpenTelemetry Collector via OTLP for BetterStack ingestion
 import winston from 'winston';
-import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-http';
-import { getLoggerProvider, LoggerProvider, BatchLogRecordProcessor } from '@opentelemetry/sdk-logs';
-import { Resource } from '@opentelemetry/resources';
-import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
-
-// Initialize OpenTelemetry Logger Provider
-const resource = new Resource({
-  [SemanticResourceAttributes.SERVICE_NAME]: process.env.SERVICE_NAME || 'ecomm-service',
-  [SemanticResourceAttributes.SERVICE_VERSION]: '1.0.0',
-  environment: process.env.NODE_ENV || 'development',
-});
-
-const loggerProvider = new LoggerProvider({ resource });
-
-// Configure OTLP exporter to send logs to BetterStack via Collector
-const otlpExporter = new OTLPLogExporter({
-  url: process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'http://localhost:4318/v1/logs',
-});
-
-loggerProvider.addLogRecordProcessor(new BatchLogRecordProcessor(otlpExporter));
 
 const levels = {
   error: 0,
@@ -78,16 +57,4 @@ const logger = winston.createLogger({
   transports,
 });
 
-// Graceful shutdown: flush pending logs to BetterStack
-process.on('SIGTERM', async () => {
-  logger.info('SIGTERM received, flushing logs to BetterStack');
-  await loggerProvider.shutdown();
-});
-
-process.on('SIGINT', async () => {
-  logger.info('SIGINT received, flushing logs to BetterStack');
-  await loggerProvider.shutdown();
-});
-
 export default logger;
-export { loggerProvider };
