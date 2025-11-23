@@ -12,7 +12,7 @@ COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 COPY libs ./libs
 COPY infra ./infra
 COPY services/users ./services/users
-COPY scripts ./scripts
+# COPY scripts ./scripts
 
 # Install dependencies for the entire workspace
 RUN pnpm install --frozen-lockfile
@@ -27,7 +27,7 @@ RUN corepack enable && corepack prepare pnpm@10.20.0 --activate
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/libs ./libs
 COPY --from=builder /app/services/users/ ./services/users/
-COPY --from=builder /app/scripts ./scripts
+# COPY --from=builder /app/scripts ./scripts
 COPY --from=builder /app/services/users/.env.example ./services/users/.env
 
 WORKDIR /app/services/users
