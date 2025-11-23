@@ -158,7 +158,7 @@ jobs:
       - name: Build and push image (fast, uses GitHub Actions cache)
         uses: docker/build-push-action@v5
         with:
-          context: ${{ matrix.service.context }}
+          context: .
           file: ${{ matrix.service.dockerfile }}
           platforms: linux/amd64
           push: true
