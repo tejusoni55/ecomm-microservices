@@ -1,0 +1,173 @@
+name: Build & Push Changed Services to ECR
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+
+concurrency:
+  group: build-and-push-ecr-${{ github.ref }}
+  cancel-in-progress: true
+
+# 1) Detect changed service directories using dorny/paths-filter
+jobs:
+  detect-changed:
+    name: Detect changed services (paths-filter)
+    runs-on: ubuntu-latest
+    outputs:
+      services-json: ${{ steps.build-services-json.outputs.services-json }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run paths filter
+        id: changed
+        uses: dorny/paths-filter@v2
+        with:
+          # Each filter key becomes an output e.g. steps.changed.outputs.users == 'true'
+          filters: |
+            users:
+              - 'services/users/**'
+              - 'services/users/*'
+              - 'services/users/Dockerfile'
+            orders:
+              - 'services/orders/**'
+              - 'services/orders/*'
+              - 'services/orders/Dockerfile'
+            products:
+              - 'services/products/**'
+              - 'services/products/*'
+              - 'services/products/Dockerfile'
+            notifications:
+              - 'services/notifications/**'
+              - 'services/notifications/*'
+              - 'services/notifications/Dockerfile'
+            payments:
+              - 'services/payments/**'
+              - 'services/payments/*'
+              - 'services/payments/Dockerfile'
+            # other infra/config changes that should trigger builds for all services
+            infra_configs:
+              - 'infra/**'
+              - '.github/workflows/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+
+      - name: Build services JSON (matrix input)
+        id: build-services-json
+        run: |
+          # Map each filter output to a service entry
+          # Services list: name,image_repo,context,dockerfile
+          services=()
+
+          # Helper to add service
+          add_service() {
+            name=$1; repo=$2; ctx=$3; df=$4
+            services+=("{\"name\":\"$name\",\"image_repo\":\"$repo\",\"context\":\"$ctx\",\"dockerfile\":\"$df\"}")
+          }
+
+          # If infra_configs changed (broad), force build of all services
+          infra_changed="${{ steps.changed.outputs.infra_configs }}"
+
+          if [ "$infra_changed" = "true" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "Infra/config change or manual dispatch detected -> building all services"
+            add_service "ecomm-users-service" "ecomm-users-service" "services/users" "services/users/Dockerfile"
+            add_service "ecomm-orders-service" "ecomm-orders-service" "services/orders" "services/orders/Dockerfile"
+            add_service "ecomm-products-service" "ecomm-products-service" "services/products" "services/products/Dockerfile"
+            add_service "ecomm-notifications-service" "ecomm-notifications-service" "services/notifications" "services/notifications/Dockerfile"
+            add_service "ecomm-payments-service" "ecomm-payments-service" "services/payments" "services/payments/Dockerfile"
+          else
+            if [ "${{ steps.changed.outputs.users }}" = "true" ]; then
+              add_service "ecomm-users-service" "ecomm-users-service" "services/users" "services/users/Dockerfile"
+            fi
+            if [ "${{ steps.changed.outputs.orders }}" = "true" ]; then
+              add_service "ecomm-orders-service" "ecomm-orders-service" "services/orders" "services/orders/Dockerfile"
+            fi
+            if [ "${{ steps.changed.outputs.products }}" = "true" ]; then
+              add_service "ecomm-products-service" "ecomm-products-service" "services/products" "services/products/Dockerfile"
+            fi
+            if [ "${{ steps.changed.outputs.notifications }}" = "true" ]; then
+              add_service "ecomm-notifications-service" "ecomm-notifications-service" "services/notifications" "services/notifications/Dockerfile"
+            fi
+            if [ "${{ steps.changed.outputs.payments }}" = "true" ]; then
+              add_service "ecomm-payments-service" "ecomm-payments-service" "services/payments" "services/payments/Dockerfile"
+            fi
+          fi
+
+          # Build JSON array
+          if [ "${#services[@]}" -eq 0 ]; then
+            SERVICES_JSON="[]"
+          else
+            SERVICES_JSON="["
+            first=true
+            for s in "${services[@]}"; do
+              if [ "$first" = true ]; then
+                SERVICES_JSON="${SERVICES_JSON}${s}"
+                first=false
+              else
+                SERVICES_JSON="${SERVICES_JSON},${s}"
+              fi
+            done
+            SERVICES_JSON="${SERVICES_JSON}]"
+          fi
+
+          echo "services-json=${SERVICES_JSON}" >> $GITHUB_OUTPUT
+          echo "Detected services JSON: $SERVICES_JSON"
+
+# 2) Build & push matrix using the JSON created above (skipped if no services)
+  build-and-push:
+    name: Build & Push changed services
+    needs: detect-changed
+    runs-on: ubuntu-latest
+    if: ${{ needs.detect-changed.outputs.services-json != '[]' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJson(needs.detect-changed.outputs.services-json) }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Configure AWS credentials (access keys)
+      - name: Configure AWS credentials (access keys)
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        run: |
+          aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+
+      - name: Build and push image
+        uses: docker/build-push-action@v4
+        with:
+          context: ${{ matrix.service.context }}
+          file: ${{ matrix.service.dockerfile }}
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ matrix.service.image_repo }}:${{ github.sha }}
+            ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ matrix.service.image_repo }}:latest
+          cache-from: type=registry,ref=${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ matrix.service.image_repo }}:cache
+          cache-to: type=registry,ref=${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ matrix.service.image_repo }}:cache,mode=max
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
+
+      - name: Echo pushed image
+        run: echo "Pushed ${{ matrix.service.image_repo }} -> ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ matrix.service.image_repo }}:${{ github.sha }}"
