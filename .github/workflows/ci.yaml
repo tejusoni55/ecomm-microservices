@@ -53,9 +53,13 @@ jobs:
               - 'services/payments/**'
               - 'services/payments/*'
               - 'services/payments/Dockerfile'
+            envoy:
+              - 'infra/envoy/**'
+              - 'infra/envoy/Dockerfile'
             # other infra/config changes that should trigger builds for all services
             infra_configs:
-              - 'infra/**'
+              - 'infra/kafka/**'
+              - 'infra/otel-collector/**'
               - '.github/workflows/**'
               - 'package.json'
               - 'pnpm-lock.yaml'
@@ -83,6 +87,7 @@ jobs:
             add_service "ecomm-products-service" "ecomm-products-service" "services/products" "services/products/Dockerfile"
             add_service "ecomm-notifications-service" "ecomm-notifications-service" "services/notifications" "services/notifications/Dockerfile"
             add_service "ecomm-payments-service" "ecomm-payments-service" "services/payments" "services/payments/Dockerfile"
+            add_service "ecomm-envoy" "ecomm-envoy" "infra/envoy" "infra/envoy/Dockerfile"
           else
             if [ "${{ steps.changed.outputs.users }}" = "true" ]; then
               add_service "ecomm-users-service" "ecomm-users-service" "services/users" "services/users/Dockerfile"
@@ -98,6 +103,9 @@ jobs:
             fi
             if [ "${{ steps.changed.outputs.payments }}" = "true" ]; then
               add_service "ecomm-payments-service" "ecomm-payments-service" "services/payments" "services/payments/Dockerfile"
+            fi
+            if [ "${{ steps.changed.outputs.envoy }}" = "true" ]; then
+              add_service "ecomm-envoy" "ecomm-envoy" "infra/envoy" "infra/envoy/Dockerfile"
             fi
           fi
 
