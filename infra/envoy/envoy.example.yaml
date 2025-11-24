@@ -1,0 +1,89 @@
+static_resources:
+  listeners:
+    - name: listener_http
+      address:
+        socket_address: { address: 0.0.0.0, port_value: 8000 }
+      filter_chains:
+        - filters:
+            - name: envoy.filters.network.http_connection_manager
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                stat_prefix: ingress_http
+                route_config:
+                  virtual_hosts:
+                    - name: services
+                      domains: ["*"]
+                      routes:
+                        - match: { prefix: "/api/users" }
+                          route: { cluster: users-service, prefix_rewrite: "/users" }
+                        - match: { prefix: "/api/orders" }
+                          route: { cluster: orders-service, prefix_rewrite: "/orders" }
+                        - match: { prefix: "/api/products" }
+                          route: { cluster: products-service, prefix_rewrite: "/products" }
+                        - match: { prefix: "/api/payments" }
+                          route: { cluster: payments-service, prefix_rewrite: "/payments" }
+                        - match: { prefix: "/api/notifications" }
+                          route: { cluster: notifications-service, prefix_rewrite: "/notifications" }
+                        # Health check routes (pass through to services)
+                        - match: { prefix: "/health" }
+                          route: { cluster: users-service, prefix_rewrite: "/health" }
+                        - match: { prefix: "/ready" }
+                          route: { cluster: users-service, prefix_rewrite: "/ready" }
+                http_filters:
+                  - name: envoy.filters.http.router
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+  clusters:
+    - name: users-service
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: users-service
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address: { address: users-service.ecomm.internal, port_value: 8001 }
+    - name: products-service
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: products-service
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address: { address: products-service.ecomm.internal, port_value: 8002 }
+    - name: orders-service
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: orders-service
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address: { address: orders-service.ecomm.internal, port_value: 8003 }
+    - name: payments-service
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: payments-service
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address: { address: payments-service.ecomm.internal, port_value: 8004 }
+    - name: notifications-service
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: notifications-service
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address: { address: notifications-service.ecomm.internal, port_value: 8005 }
+admin:
+  address:
+    socket_address: { address: 127.0.0.1, port_value: 9901 }
