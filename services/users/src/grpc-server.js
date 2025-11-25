@@ -39,23 +39,23 @@ function loadCert(contentOrPath) {
 }
 
 function loadServerCerts() {
-  const caCert =
-    process.env.GRPC_CA_CERT ||
-    (process.env.GRPC_CA_CERT_PATH &&
-      loadCert(process.env.GRPC_CA_CERT_PATH)) ||
-    "../../../scripts/certs/ca-cert.pem";
+  const caCert = process.env.GRPC_CA_CERT
+    ? Buffer.from(process.env.GRPC_CA_CERT, "utf-8")
+    : process.env.GRPC_CA_CERT_PATH
+    ? loadCert(process.env.GRPC_CA_CERT_PATH)
+    : null;
 
-  const serverCert =
-    process.env.GRPC_SERVER_CERT ||
-    (process.env.GRPC_SERVER_CERT_PATH &&
-      loadCert(process.env.GRPC_SERVER_CERT_PATH)) ||
-    "../../../scripts/certs/users-service/server-cert.pem";
+  const serverCert = process.env.GRPC_SERVER_CERT
+    ? Buffer.from(process.env.GRPC_SERVER_CERT, "utf-8")
+    : process.env.GRPC_SERVER_CERT_PATH
+    ? loadCert(process.env.GRPC_SERVER_CERT_PATH)
+    : null;
 
-  const serverKey =
-    process.env.GRPC_SERVER_KEY ||
-    (process.env.GRPC_SERVER_KEY_PATH &&
-      loadCert(process.env.GRPC_SERVER_KEY_PATH)) ||
-    "../../../scripts/certs/users-service/server-key.pem";
+  const serverKey = process.env.GRPC_SERVER_KEY
+    ? Buffer.from(process.env.GRPC_SERVER_KEY, "utf-8")
+    : process.env.GRPC_SERVER_KEY_PATH
+    ? loadCert(process.env.GRPC_SERVER_KEY_PATH)
+    : null;
 
   if (!caCert || !serverCert || !serverKey) {
     throw new Error(
