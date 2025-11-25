@@ -39,10 +39,6 @@ function loadCert(contentOrPath) {
 }
 
 function loadServerCerts() {
-  logger.info("process.env.GRPC_CA_CERT : " + process.env.GRPC_CA_CERT);
-  logger.info("process.env.GRPC_SERVER_CERT : " + process.env.GRPC_SERVER_CERT);
-  logger.info("process.env.GRPC_SERVER_KEY : " + process.env.GRPC_SERVER_KEY);
-
   const caCert = process.env.GRPC_CA_CERT
     ? Buffer.from(process.env.GRPC_CA_CERT, "utf-8")
     : process.env.GRPC_CA_CERT_PATH
@@ -60,10 +56,6 @@ function loadServerCerts() {
     : process.env.GRPC_SERVER_KEY_PATH
     ? loadCert(process.env.GRPC_SERVER_KEY_PATH)
     : null;
-
-  logger.info("caCert : " + caCert);
-  logger.info("serverCert : " + serverCert);
-  logger.info("serverKey : " + serverKey);
 
   if (!caCert || !serverCert || !serverKey) {
     throw new Error(
