@@ -40,19 +40,19 @@ function loadCert(contentOrPath) {
 
 function loadServerCerts() {
   const caCert =
-    (process.env.GRPC_CA_CERT && loadCert(process.env.GRPC_CA_CERT)) ||
+    process.env.GRPC_CA_CERT ||
     (process.env.GRPC_CA_CERT_PATH &&
       loadCert(process.env.GRPC_CA_CERT_PATH)) ||
     "../../../scripts/certs/ca-cert.pem";
 
   const serverCert =
-    (process.env.GRPC_SERVER_CERT && loadCert(process.env.GRPC_SERVER_CERT)) ||
+    process.env.GRPC_SERVER_CERT ||
     (process.env.GRPC_SERVER_CERT_PATH &&
       loadCert(process.env.GRPC_SERVER_CERT_PATH)) ||
     "../../../scripts/certs/users-service/server-cert.pem";
 
   const serverKey =
-    (process.env.GRPC_SERVER_KEY && loadCert(process.env.GRPC_SERVER_KEY)) ||
+    process.env.GRPC_SERVER_KEY ||
     (process.env.GRPC_SERVER_KEY_PATH &&
       loadCert(process.env.GRPC_SERVER_KEY_PATH)) ||
     "../../../scripts/certs/users-service/server-key.pem";
