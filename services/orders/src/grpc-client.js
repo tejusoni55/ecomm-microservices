@@ -39,19 +39,19 @@ function loadCert(contentOrPath) {
 
 function loadClientCerts() {
   const caCert =
-    (process.env.GRPC_CA_CERT && loadCert(process.env.GRPC_CA_CERT)) ||
+    process.env.GRPC_CA_CERT ||
     (process.env.GRPC_CA_CERT_PATH &&
       loadCert(process.env.GRPC_CA_CERT_PATH)) ||
     "../../../scripts/certs/ca-cert.pem";
 
   const clientCert =
-    (process.env.GRPC_CLIENT_CERT && loadCert(process.env.GRPC_CLIENT_CERT)) ||
+    process.env.GRPC_CLIENT_CERT ||
     (process.env.GRPC_CLIENT_CERT_PATH &&
       loadCert(process.env.GRPC_CLIENT_CERT_PATH)) ||
     "../../../scripts/certs/orders-service/client-cert.pem";
 
   const clientKey =
-    (process.env.GRPC_CLIENT_KEY && loadCert(process.env.GRPC_CLIENT_KEY)) ||
+    process.env.GRPC_CLIENT_KEY ||
     (process.env.GRPC_CLIENT_KEY_PATH &&
       loadCert(process.env.GRPC_CLIENT_KEY_PATH)) ||
     "../../../scripts/certs/orders-service/client-key.pem";
