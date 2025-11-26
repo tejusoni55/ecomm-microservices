@@ -31,6 +31,10 @@ export function getDb() {
         : false,
   });
 
+  logger.info("pool created : " + pool);
+  logger.info("process.env.NODE_ENV : " + process.env.NODE_ENV);
+  logger.info("process.env.DB_CA_CERT : " + process.env.DB_CA_CERT);
+
   return pool;
 }
 
