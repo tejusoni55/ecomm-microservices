@@ -20,11 +20,13 @@ export function getDb() {
       process.env.NODE_ENV === "production"
         ? {
             rejectUnauthorized: false, // for self-signed cert
-            ca: fs
-              .readFileSync(
-                process.env.DB_CA_CERT_PATH || "./postgres-certs/server.crt"
-              )
-              .toString(),
+            ca:
+              process.env.DB_CA_CERT ||
+              fs
+                .readFileSync(
+                  process.env.DB_CA_CERT_PATH || "./postgres-certs/server.crt"
+                )
+                .toString(),
           }
         : false,
   });
