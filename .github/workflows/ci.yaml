@@ -59,6 +59,7 @@ jobs:
             infra_configs:
               - 'infra/kafka/**'
               - 'infra/otel-collector/**'
+              - 'libs/**'
               - '.github/workflows/**'
               - 'package.json'
               - 'pnpm-lock.yaml'
