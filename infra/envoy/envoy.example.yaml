@@ -43,7 +43,7 @@ static_resources:
           - lb_endpoints:
               - endpoint:
                   address:
-                    socket_address: { address: users-service.ecomm.internal, port_value: 8001 }
+                    socket_address: { address: users.ecomm.internal, port_value: 8001 }
     - name: products-service
       type: STRICT_DNS
       lb_policy: ROUND_ROBIN
@@ -53,7 +53,7 @@ static_resources:
           - lb_endpoints:
               - endpoint:
                   address:
-                    socket_address: { address: products-service.ecomm.internal, port_value: 8002 }
+                    socket_address: { address: products.ecomm.internal, port_value: 8002 }
     - name: orders-service
       type: STRICT_DNS
       lb_policy: ROUND_ROBIN
@@ -63,7 +63,7 @@ static_resources:
           - lb_endpoints:
               - endpoint:
                   address:
-                    socket_address: { address: orders-service.ecomm.internal, port_value: 8003 }
+                    socket_address: { address: orders.ecomm.internal, port_value: 8003 }
     - name: payments-service
       type: STRICT_DNS
       lb_policy: ROUND_ROBIN
@@ -73,7 +73,7 @@ static_resources:
           - lb_endpoints:
               - endpoint:
                   address:
-                    socket_address: { address: payments-service.ecomm.internal, port_value: 8004 }
+                    socket_address: { address: payments.ecomm.internal, port_value: 8004 }
     - name: notifications-service
       type: STRICT_DNS
       lb_policy: ROUND_ROBIN
@@ -83,7 +83,7 @@ static_resources:
           - lb_endpoints:
               - endpoint:
                   address:
-                    socket_address: { address: notifications-service.ecomm.internal, port_value: 8005 }
+                    socket_address: { address: notifications.ecomm.internal, port_value: 8005 }
 admin:
   address:
     socket_address: { address: 127.0.0.1, port_value: 9901 }
