@@ -13,7 +13,7 @@ function getKafka() {
     clientId: process.env.KAFKA_CLIENT_ID || 'ecomm-service',
     brokers: (process.env.KAFKA_BROKERS || 'localhost:9092').split(','),
     logLevel: process.env.KAFKA_LOG_LEVEL === 'debug' ? logLevel.DEBUG : logLevel.INFO,
-    ssl: process.env.NODE_ENV === 'production',
+    ssl: process.env.NODE_ENV === 'production' && process.env.KAFKA_SSL_ENABLED === 'true',
     sasl: process.env.KAFKA_SASL_ENABLED === 'true' ? {
       mechanism: (process.env.KAFKA_SASL_MECHANISM || 'plain').toLowerCase(),
       username: process.env.KAFKA_SASL_USERNAME,
