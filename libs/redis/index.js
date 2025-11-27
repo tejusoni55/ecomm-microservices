@@ -16,23 +16,55 @@ export async function getRedis() {
     process.env.REDIS_HOST || process.env.REDIS_URL || "redis://localhost:6379";
   const redisPort = process.env.REDIS_PORT || 6379;
 
-  client = new Redis(redisUrl, {
-    maxRetriesPerRequest: 3,
-    retryStrategy: (times) => {
-      if (times > 10) {
-        console.error("[Redis] Max reconnection attempts reached");
-        return null; // Stop retrying
+  if (process.env.NODE_ENV === "production") {
+    client = new Redis.Cluster(
+      [
+        {
+          host: "clustercfg.ecomm-redis-prod.h5b37d.aps1.cache.amazonaws.com",
+          port: redisPort,
+        },
+      ],
+      {
+        dnsLookup: (address, callback) => callback(null, address),
+        redisOptions: {
+          tls: {},
+          maxRetriesPerRequest: 3,
+          retryStrategy: (times) => {
+            if (times > 10) {
+              console.error("[Redis] Max reconnection attempts reached");
+              return null; // Stop retrying
+            }
+            return Math.min(times * 100, 3000);
+          },
+          reconnectOnError: (err) => {
+            const targetError = "READONLY";
+            if (err.message.includes(targetError)) {
+              return true; // Reconnect on READONLY error
+            }
+            return false;
+          },
+        },
       }
-      return Math.min(times * 100, 3000);
-    },
-    reconnectOnError: (err) => {
-      const targetError = "READONLY";
-      if (err.message.includes(targetError)) {
-        return true; // Reconnect on READONLY error
-      }
-      return false;
-    },
-  });
+    );
+  } else {
+    client = new Redis(redisUrl, {
+      maxRetriesPerRequest: 3,
+      retryStrategy: (times) => {
+        if (times > 10) {
+          console.error("[Redis] Max reconnection attempts reached");
+          return null; // Stop retrying
+        }
+        return Math.min(times * 100, 3000);
+      },
+      reconnectOnError: (err) => {
+        const targetError = "READONLY";
+        if (err.message.includes(targetError)) {
+          return true; // Reconnect on READONLY error
+        }
+        return false;
+      },
+    });
+  }
 
   client.on("error", (err) => {
     console.error("[Redis] Client error:", err);
