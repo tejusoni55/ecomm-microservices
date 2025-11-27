@@ -1,5 +1,5 @@
 // Redis client wrapper for caching and rate limiting
-import Redis from 'ioredis';
+import Redis from "ioredis";
 
 let client = null;
 
@@ -8,26 +8,25 @@ let client = null;
  * @returns {Promise<Redis>}
  */
 export async function getRedis() {
-  if (client && client.status === 'ready') {
+  if (client && client.status === "ready") {
     return client;
   }
 
-  const redisUrl = process.env.REDIS_HOST || process.env.REDIS_URL || 'redis://localhost:6379';
+  const redisUrl =
+    process.env.REDIS_HOST || process.env.REDIS_URL || "redis://localhost:6379";
   const redisPort = process.env.REDIS_PORT || 6379;
-  
-  client = new Redis({
-    host: redisUrl,
-    port: redisPort,
+
+  client = new Redis(redisUrl, {
     maxRetriesPerRequest: 3,
     retryStrategy: (times) => {
       if (times > 10) {
-        console.error('[Redis] Max reconnection attempts reached');
+        console.error("[Redis] Max reconnection attempts reached");
         return null; // Stop retrying
       }
       return Math.min(times * 100, 3000);
     },
     reconnectOnError: (err) => {
-      const targetError = 'READONLY';
+      const targetError = "READONLY";
       if (err.message.includes(targetError)) {
         return true; // Reconnect on READONLY error
       }
@@ -35,30 +34,30 @@ export async function getRedis() {
     },
   });
 
-  client.on('error', (err) => {
-    console.error('[Redis] Client error:', err);
+  client.on("error", (err) => {
+    console.error("[Redis] Client error:", err);
   });
 
-  client.on('connect', () => {
-    console.log('[Redis] Client connected');
+  client.on("connect", () => {
+    console.log("[Redis] Client connected");
   });
 
-  client.on('ready', () => {
-    console.log('[Redis] Client ready');
+  client.on("ready", () => {
+    console.log("[Redis] Client ready");
   });
 
-  client.on('reconnecting', () => {
-    console.log('[Redis] Client reconnecting...');
+  client.on("reconnecting", () => {
+    console.log("[Redis] Client reconnecting...");
   });
 
   // Wait for connection to be ready
-  if (client.status !== 'ready') {
+  if (client.status !== "ready") {
     await new Promise((resolve, reject) => {
-      if (client.status === 'ready') {
+      if (client.status === "ready") {
         resolve();
       } else {
-        client.once('ready', resolve);
-        client.once('error', reject);
+        client.once("ready", resolve);
+        client.once("error", reject);
       }
     });
   }
@@ -174,7 +173,7 @@ export async function clearCache() {
     await redis.flushdb();
     return true;
   } catch (error) {
-    console.error('[Redis] Error clearing cache:', error);
+    console.error("[Redis] Error clearing cache:", error);
     return false;
   }
 }
@@ -201,7 +200,7 @@ export async function checkRateLimit(identifier, maxRequests, windowSeconds) {
     if (currentCount >= maxRequests) {
       // Rate limit exceeded
       const ttl = await redis.ttl(key);
-      const resetAt = now + (ttl * 1000);
+      const resetAt = now + ttl * 1000;
       return {
         allowed: false,
         remaining: 0,
@@ -212,7 +211,7 @@ export async function checkRateLimit(identifier, maxRequests, windowSeconds) {
     // Increment counter
     if (currentCount === 0) {
       // First request in window, set with expiration
-      await redis.setex(key, windowSeconds, '1');
+      await redis.setex(key, windowSeconds, "1");
     } else {
       // Increment existing counter
       await redis.incr(key);
@@ -220,7 +219,7 @@ export async function checkRateLimit(identifier, maxRequests, windowSeconds) {
 
     const newCount = currentCount + 1;
     const ttl = await redis.ttl(key);
-    const resetAt = now + (ttl * 1000);
+    const resetAt = now + ttl * 1000;
 
     return {
       allowed: true,
@@ -228,12 +227,15 @@ export async function checkRateLimit(identifier, maxRequests, windowSeconds) {
       resetAt,
     };
   } catch (error) {
-    console.error(`[Redis] Error checking rate limit for "${identifier}":`, error);
+    console.error(
+      `[Redis] Error checking rate limit for "${identifier}":`,
+      error
+    );
     // On error, allow the request (fail open)
     return {
       allowed: true,
       remaining: maxRequests,
-      resetAt: Date.now() + (windowSeconds * 1000),
+      resetAt: Date.now() + windowSeconds * 1000,
     };
   }
 }
@@ -250,7 +252,10 @@ export async function resetRateLimit(identifier) {
     await redis.del(key);
     return true;
   } catch (error) {
-    console.error(`[Redis] Error resetting rate limit for "${identifier}":`, error);
+    console.error(
+      `[Redis] Error resetting rate limit for "${identifier}":`,
+      error
+    );
     return false;
   }
 }
@@ -262,25 +267,32 @@ export async function resetRateLimit(identifier) {
  * @param {number} windowSeconds - Time window in seconds
  * @returns {Promise<{remaining: number, resetAt: number}>}
  */
-export async function getRateLimitStatus(identifier, maxRequests, windowSeconds) {
+export async function getRateLimitStatus(
+  identifier,
+  maxRequests,
+  windowSeconds
+) {
   try {
     const redis = await getRedis();
     const key = `ratelimit:${identifier}`;
     const count = await redis.get(key);
     const currentCount = count ? parseInt(count, 10) : 0;
     const ttl = await redis.ttl(key);
-    const resetAt = ttl > 0 ? Date.now() + (ttl * 1000) : Date.now() + (windowSeconds * 1000);
+    const resetAt =
+      ttl > 0 ? Date.now() + ttl * 1000 : Date.now() + windowSeconds * 1000;
 
     return {
       remaining: Math.max(0, maxRequests - currentCount),
       resetAt,
     };
   } catch (error) {
-    console.error(`[Redis] Error getting rate limit status for "${identifier}":`, error);
+    console.error(
+      `[Redis] Error getting rate limit status for "${identifier}":`,
+      error
+    );
     return {
       remaining: maxRequests,
-      resetAt: Date.now() + (windowSeconds * 1000),
+      resetAt: Date.now() + windowSeconds * 1000,
     };
   }
 }
-
