@@ -11,8 +11,8 @@ const PORT = process.env.SERVICE_PORT || 8003;
 app.use(express.json());
 
 // Express middleware
-import { rateLimitMiddleware } from "@ecomm/redis/middleware";
-app.use(rateLimitMiddleware({ maxRequests: 100, windowSeconds: 60 }));
+// import { rateLimitMiddleware } from "@ecomm/redis/middleware";
+// app.use(rateLimitMiddleware({ maxRequests: 100, windowSeconds: 60 }));
 
 // Logging middleware
 app.use((req, res, next) => {

@@ -10,8 +10,8 @@ const PORT = process.env.SERVICE_PORT || 8002;
 
 app.use(express.json());
 // Express middleware
-import { rateLimitMiddleware } from "@ecomm/redis/middleware";
-app.use(rateLimitMiddleware({ maxRequests: 100, windowSeconds: 60 }));
+// import { rateLimitMiddleware } from "@ecomm/redis/middleware";
+// app.use(rateLimitMiddleware({ maxRequests: 100, windowSeconds: 60 }));
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'products' });
