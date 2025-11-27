@@ -12,9 +12,12 @@ export async function getRedis() {
     return client;
   }
 
-  const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+  const redisUrl = process.env.REDIS_HOST || process.env.REDIS_URL || 'redis://localhost:6379';
+  const redisPort = process.env.REDIS_PORT || 6379;
   
-  client = new Redis(redisUrl, {
+  client = new Redis({
+    host: redisUrl,
+    port: redisPort,
     maxRetriesPerRequest: 3,
     retryStrategy: (times) => {
       if (times > 10) {
