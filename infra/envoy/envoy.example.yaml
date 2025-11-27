@@ -14,8 +14,8 @@ static_resources:
                     - name: services
                       domains: ["*"]
                       routes:
-                        - match: { prefix: "/api/users" }
-                          route: { cluster: users-service, prefix_rewrite: "/users" }
+                        - match: { prefix: "/api/auth" }
+                          route: { cluster: users-service, prefix_rewrite: "/auth" }
                         - match: { prefix: "/api/orders" }
                           route: { cluster: orders-service, prefix_rewrite: "/orders" }
                         - match: { prefix: "/api/products" }
