@@ -20,11 +20,11 @@ static_resources:
                           route: { cluster: orders-service, prefix_rewrite: "/orders" }
                         - match: { prefix: "/api/products" }
                           route: { cluster: products-service, prefix_rewrite: "/products" }
-                        # - match: { prefix: "/api/payments" }
-                        #   route: { cluster: payments-service, prefix_rewrite: "/payments" }
-                        # - match: { prefix: "/api/notifications" }
-                        #   route: { cluster: notifications-service, prefix_rewrite: "/notifications" }
-                        # Health check routes (pass through to services)
+                        - match: { prefix: "/api/payments" }
+                          route: { cluster: payments-service, prefix_rewrite: "/" }
+                        - match: { prefix: "/api/notifications" }
+                          route: { cluster: notifications-service, prefix_rewrite: "/" }
+                        Health check routes (pass through to services)
                         - match: { prefix: "/health" }
                           direct_response: { status: 200, body: { inline_string: "OK" } }
                         - match: { prefix: "/ready" }
@@ -64,26 +64,26 @@ static_resources:
               - endpoint:
                   address:
                     socket_address: { address: orders.ecomm.internal, port_value: 8003 }
-    # - name: payments-service
-    #   type: STRICT_DNS
-    #   lb_policy: ROUND_ROBIN
-    #   load_assignment:
-    #     cluster_name: payments-service
-    #     endpoints:
-    #       - lb_endpoints:
-    #           - endpoint:
-    #               address:
-    #                 socket_address: { address: payments.ecomm.internal, port_value: 8004 }
-    # - name: notifications-service
-    #   type: STRICT_DNS
-    #   lb_policy: ROUND_ROBIN
-    #   load_assignment:
-    #     cluster_name: notifications-service
-    #     endpoints:
-    #       - lb_endpoints:
-    #           - endpoint:
-    #               address:
-    #                 socket_address: { address: notifications.ecomm.internal, port_value: 8005 }
+    - name: payments-service
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: payments-service
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address: { address: payments.ecomm.internal, port_value: 8004 }
+    - name: notifications-service
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: notifications-service
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address: { address: notifications.ecomm.internal, port_value: 8005 }
 admin:
   address:
     socket_address: { address: 127.0.0.1, port_value: 9901 }
