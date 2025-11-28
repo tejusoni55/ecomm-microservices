@@ -38,16 +38,14 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 18
-  
+
       - name: Install npm deps for Pulumi program
         run: npm ci --prefix infra/pulumi
 
-      - name: Pulumi login
+      - name: Install Pulumi CLI only (no preview/apply)
         uses: pulumi/actions@v6
         with:
-          command: preview
-          work-dir: infra/pulumi
-          stack-name: ${{ secrets.PULUMI_STACK }} # When using an individual account, only use stack-name.
+          command: version
         env:
           PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
 
@@ -59,11 +57,11 @@ jobs:
           AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
           AWS_REGION: ${{ secrets.AWS_REGION }}
           PULUMI_STACK: ${{ secrets.PULUMI_STACK }}
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
         run: |
           set -euo pipefail
 
           # Read services array from repository_dispatch client_payload
-          # Use $GITHUB_EVENT_PATH (file that GitHub populates)
           services_json=$(jq -c '.client_payload.services // .services // []' "$GITHUB_EVENT_PATH")
           echo "services_json=$services_json"
 
@@ -75,11 +73,11 @@ jobs:
           cd infra/pulumi
 
           # select stack (must exist)
-          pulumi stack select "${{ secrets.PULUMI_STACK }}"
+          pulumi stack select "${PULUMI_STACK}"
 
           # iterate each service object and set pulumi config images.<service-name> to ECR image:latest
-          # we use the 'name' field as the pulumi key
-          echo "$services_json" | jq -c '.[]' | while read -r svc; do
+          # use process substitution to avoid subshell issues
+          while read -r svc; do
             svc_name=$(echo "$svc" | jq -r '.name')
             repo_name=$(echo "$svc" | jq -r '.image_repo')
 
@@ -88,13 +86,14 @@ jobs:
               continue
             fi
 
-            image_uri="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${repo_name}:latest"
+            image_uri="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${repo_name}:latest"
             echo "Setting Pulumi config images.${svc_name} = ${image_uri}"
-            # Use --path so nested keys work: images.<svc_name>
             pulumi config set --path "images.${svc_name}" "${image_uri}"
-          done
+          done < <(echo "$services_json" | jq -c '.[]')
 
       - name: Pulumi up (auto-approve)
         working-directory: infra/pulumi
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
         run: |
           pulumi up --yes
