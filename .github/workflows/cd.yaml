@@ -44,8 +44,6 @@ jobs:
 
       - name: Install Pulumi CLI only (no preview/apply)
         uses: pulumi/actions@v6
-        with:
-          command: version
         env:
           PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
 
