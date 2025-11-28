@@ -13,26 +13,19 @@ concurrency:
 
 jobs:
   pulumi-deploy:
-    name: Pulumi deploy changed services
     runs-on: ubuntu-latest
-    env:
-      AWS_REGION: ${{ secrets.AWS_REGION }}
-      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-      PULUMI_STACK: ${{ secrets.PULUMI_STACK }}
+    environment: production
     steps:
+
       - name: Checkout repo
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Print incoming repository_dispatch payload (debug)
         run: |
           echo "Event name: $GITHUB_EVENT_NAME"
-          echo "Dispatch payload:"
-          jq -C . github.event || echo "(no github.event file)"
-          # print client_payload.services if present
-          echo "client_payload.services:"
-          echo "${{ toJson(github.event.client_payload.services) }}" | jq -C .
+          echo "Event file: $GITHUB_EVENT_PATH"
+          echo "---- payload ----"
+          sed -n '1,200p' "$GITHUB_EVENT_PATH" || true
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
@@ -45,81 +38,58 @@ jobs:
         run: |
           curl -fsSL https://get.pulumi.com | sh
           echo "PATH=$PATH:$HOME/.pulumi/bin" >> $GITHUB_PATH
-          source $GITHUB_PATH
 
-      - name: Pulumi login
-        uses: pulumi/actions@v6
-        with:
-          command: preview
-          stack-name: tejusoni55-org/${{ secrets.PULUMI_STACK }}
+      - name: Ensure jq is available (JSON tool)
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Set Pulumi token env (no marketplace action)
         env:
           PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
-
-      - name: Prepare services JSON from payload
-        id: prepare
         run: |
-          # If payload exists, write it to services.json. Expect an array of objects:
-          # [{ "name":"ecomm-users-service", "image_repo":"ecomm-users-service", "context":"services/users", "dockerfile":"services/users/Dockerfile" }, ...]
-          # If payload missing or empty -> exit with friendly message.
-          payload="${{ toJson(github.event.client_payload.services) }}"
-          echo "raw payload: $payload"
-          if [ -z "$payload" ] || [ "$payload" = "null" ] || [ "$payload" = "[]" ]; then
-            echo "No services found in client_payload.services - nothing to deploy"
-            echo "services_json=[]" >> $GITHUB_OUTPUT
+          # quick verification (non-fatal)
+          pulumi whoami || true
+
+      - name: Parse services from dispatch payload & set Pulumi image config
+        env:
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          PULUMI_STACK: ${{ secrets.PULUMI_STACK }}
+        run: |
+          set -euo pipefail
+
+          # Read services array from repository_dispatch client_payload
+          # Use $GITHUB_EVENT_PATH (file that GitHub populates)
+          services_json=$(jq -c '.client_payload.services // .services // []' "$GITHUB_EVENT_PATH")
+          echo "services_json=$services_json"
+
+          if [ "$services_json" = "[]" ]; then
+            echo "No services found in client_payload.services — nothing to deploy."
             exit 0
           fi
 
-          echo "$payload" | jq '.' > services.json
-          echo "Wrote services.json:"
-          cat services.json
-          echo "services_json<<EOF" >> $GITHUB_OUTPUT
-          cat services.json >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Set images in Pulumi config for changed services
-        if: steps.prepare.outputs.services_json != '[]'
-        run: |
           cd infra/pulumi
 
-          # select pulumi stack (assumes stack already created)
-          pulumi stack select "${{ secrets.PULUMI_STACK}}"
+          # select stack (must exist)
+          pulumi stack select "${{ secrets.PULUMI_STACK }}"
 
-          # Helper: convert repo name or full name to a short key that matches your Pulumi config keys
-          # e.g. ecomm-users-service  -> users
-          repo_to_key() {
-            repo="$1"
-            # remove prefix 'ecomm-' and suffix '-service' if present, also strip non alpha/digits
-            key=$(echo "$repo" | sed -E 's/^ecomm-//; s/-service$//; s/[^a-zA-Z0-9]/-/g')
-            echo "$key"
-          }
+          # iterate each service object and set pulumi config images.<service-name> to ECR image:latest
+          # we use the 'name' field as the pulumi key
+          echo "$services_json" | jq -c '.[]' | while read -r svc; do
+            svc_name=$(echo "$svc" | jq -r '.name')
+            repo_name=$(echo "$svc" | jq -r '.image_repo')
 
-          # Iterate services.json and set pulumi config images.<key> = <account>.dkr.ecr.<region>.amazonaws.com/<image_repo>:<tag>
-          # The CI should include repo name and ideally tag (we assume latest if not present).
-          jq -c '.[]' ../services.json | while read -r item; do
-            image_repo=$(echo "$item" | jq -r '.image_repo // empty')
-            name=$(echo "$item" | jq -r '.name // empty')
-            tag=$(echo "$item" | jq -r '.tag // "latest"')
-            # fallback: if image_repo empty but name present, try using name
-            if [ -z "$image_repo" ] || [ "$image_repo" = "null" ]; then
-              image_repo="$name"
-            fi
-            if [ -z "$image_repo" ] || [ "$image_repo" = "null" ]; then
-              echo "Skipping item (no name/image_repo): $item"
+            if [ -z "$svc_name" ] || [ "$svc_name" = "null" ]; then
+              echo "Skipping invalid service entry: $svc"
               continue
             fi
 
-            key=$(repo_to_key "$image_repo")
-            image_uri="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${image_repo}:${tag}"
-
-            echo "Setting Pulumi config images.${key} = ${image_uri}"
-            pulumi config set --path "images.${key}" "${image_uri}" --stack "${{ secrets.PULUMI_STACK}}" --non-interactive
+            image_uri="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${repo_name}:latest"
+            echo "Setting Pulumi config images.${svc_name} = ${image_uri}"
+            # Use --path so nested keys work: images.<svc_name>
+            pulumi config set --path "images.${svc_name}" "${image_uri}"
           done
 
-          echo "Pulumi config values set. Current images.* entries:"
-          pulumi config --show-secrets | sed -n '1,200p'
-
       - name: Pulumi up (auto-approve)
-        if: steps.prepare.outputs.services_json != '[]'
+        working-directory: infra/pulumi
         run: |
-          cd infra/pulumi
-          pulumi up --yes --stack "${{ secrets.PULUMI_STACK}}"
+          pulumi up --yes
