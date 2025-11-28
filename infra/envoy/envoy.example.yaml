@@ -74,16 +74,16 @@ static_resources:
               - endpoint:
                   address:
                     socket_address: { address: payments.ecomm.internal, port_value: 8004 }
-    - name: notifications-service
-      type: STRICT_DNS
-      lb_policy: ROUND_ROBIN
-      load_assignment:
-        cluster_name: notifications-service
-        endpoints:
-          - lb_endpoints:
-              - endpoint:
-                  address:
-                    socket_address: { address: notifications.ecomm.internal, port_value: 8005 }
+    # - name: notifications-service
+    #   type: STRICT_DNS
+    #   lb_policy: ROUND_ROBIN
+    #   load_assignment:
+    #     cluster_name: notifications-service
+    #     endpoints:
+    #       - lb_endpoints:
+    #           - endpoint:
+    #               address:
+    #                 socket_address: { address: notifications.ecomm.internal, port_value: 8005 }
 admin:
   address:
     socket_address: { address: 127.0.0.1, port_value: 9901 }
