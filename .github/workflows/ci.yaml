@@ -134,6 +134,8 @@ jobs:
     name: Build & Push changed services
     needs: detect-changed
     runs-on: ubuntu-latest
+    outputs:
+      services-json: ${{ needs.detect-changed.outputs.services-json }}
     if: ${{ needs.detect-changed.outputs.services-json != '[]' }}
     strategy:
       fail-fast: false
@@ -190,7 +192,7 @@ jobs:
     steps:
       - name: Save services JSON to file
         run: |
-          echo '${{ needs.detect-changed.outputs.services-json }}'
+          echo '${{ needs.build-and-push.outputs.services-json }}'
         # OR if you have SERVICES_JSON in a step env, echo that var
 
       - name: Trigger deployment workflow (repository_dispatch)
