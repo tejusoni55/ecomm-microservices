@@ -37,7 +37,10 @@ jobs:
       - name: Pulumi login
         uses: pulumi/actions@v6
         with:
-          access-token: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          command: preview
+          stack-name: ${{ secrets.PULUMI_STACK }} # When using an individual account, only use stack-name.
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
 
       - name: Ensure jq is available (JSON tool)
         run: sudo apt-get update && sudo apt-get install -y jq
