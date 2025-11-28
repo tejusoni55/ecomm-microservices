@@ -94,4 +94,4 @@ jobs:
         env:
           PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
         run: |
-          pulumi up --yes
+          pulumi up --yes --skip-preview
