@@ -7,8 +7,14 @@ config:
       containerName: users-service
     products-service:
       containerName: products-service
-  images:
-    users-service: 121568408183.dkr.ecr.ap-south-1.amazonaws.com/ecomm-users-service:latest
+    orders-service:
+      containerName: orders-service
+    notifications-service:
+      containerName: notifications-service
+    payments-service:
+      containerName: payments-service
+    envoy-service:
+      containerName: envoy
   aws:secretKey:
     secure: AAABAL3gD19A+kI0Z24EmFQbScp6BVnSUyjyzXMoDMtn5lutb9votIMxVzWzJ3KZrQN8e946Ea3Mmvbe/73LQVM0oTOljiv6
   aws:accessKey:
