@@ -34,20 +34,19 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Install Pulumi CLI
-        run: |
-          curl -fsSL https://get.pulumi.com | sh
-          echo "PATH=$PATH:$HOME/.pulumi/bin" >> $GITHUB_PATH
-
-      - name: Ensure jq is available (JSON tool)
-        run: sudo apt-get update && sudo apt-get install -y jq
-
-      - name: Set Pulumi token env (no marketplace action)
+      - name: Pulumi login
+        uses: pulumi/actions@v6
+        with:
+          command: preview
+          stack-name: tejusoni55-org/${{ secrets.PULUMI_STACK }}
         env:
-          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}.
         run: |
           # quick verification (non-fatal)
           pulumi whoami || true
+
+      - name: Ensure jq is available (JSON tool)
+        run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: Parse services from dispatch payload & set Pulumi image config
         env:
