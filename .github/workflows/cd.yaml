@@ -1,10 +1,8 @@
 name: Deploy changed services to ECS (Pulumi)
 
 on:
-  workflow_run:
-    workflows: ["Build & Push Changed Services to ECR"] # name of previous workflow
-    types:
-      - completed
+  repository_dispatch:
+    types: [deploy-ecs-services]
 
 permissions:
   contents: read
@@ -14,77 +12,27 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  detect-changed:
-    name: Detect changed services (paths-filter)
-    runs-on: ubuntu-latest
-    outputs:
-      users: ${{ steps.filter.outputs.users }}
-      products: ${{ steps.filter.outputs.products }}
-      orders: ${{ steps.filter.outputs.orders }}
-      notifications: ${{ steps.filter.outputs.notifications }}
-      payments: ${{ steps.filter.outputs.payments }}
-      envoy: ${{ steps.filter.outputs.envoy }}
-      infra_configs: ${{ steps.filter.outputs.infra_configs }}
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - id: filter
-        name: Detect changed services (paths-filter)
-        uses: dorny/paths-filter@v3
-        with:
-          # Each filter key becomes an output e.g. steps.changed.outputs.users == 'true'
-          filters: |
-            users:
-              - 'services/users/**'
-              - 'services/users/*'
-              - 'services/users/Dockerfile'
-            orders:
-              - 'services/orders/**'
-              - 'services/orders/*'
-              - 'services/orders/Dockerfile'
-            products:
-              - 'services/products/**'
-              - 'services/products/*'
-              - 'services/products/Dockerfile'
-            notifications:
-              - 'services/notifications/**'
-              - 'services/notifications/*'
-              - 'services/notifications/Dockerfile'
-            payments:
-              - 'services/payments/**'
-              - 'services/payments/*'
-              - 'services/payments/Dockerfile'
-            envoy:
-              - 'infra/envoy/**'
-              - 'infra/envoy/Dockerfile'
-            # other infra/config changes that should trigger builds for all services
-            infra_configs:
-              - 'infra/kafka/**'
-              - 'infra/otel-collector/**'
-              - 'libs/**'
-              - '.github/workflows/**'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-
   pulumi-deploy:
     name: Pulumi deploy changed services
     runs-on: ubuntu-latest
-    needs: detect-changed
-    if: |
-      needs.detect-changed.outputs.users == 'true' ||
-      needs.detect-changed.outputs.products == 'true' ||
-      needs.detect-changed.outputs.orders == 'true' ||
-      needs.detect-changed.outputs.notifications == 'true' ||
-      needs.detect-changed.outputs.payments == 'true' ||
-      needs.detect-changed.outputs.envoy == 'true' ||
-      needs.detect-changed.outputs.infra_configs == 'true'
+    env:
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+      PULUMI_STACK: ${{ secrets.PULUMI_STACK }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repo
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Print incoming repository_dispatch payload (debug)
+        run: |
+          echo "Event name: $GITHUB_EVENT_NAME"
+          echo "Dispatch payload:"
+          jq -C . github.event || echo "(no github.event file)"
+          # print client_payload.services if present
+          echo "client_payload.services:"
+          echo "${{ toJson(github.event.client_payload.services) }}" | jq -C .
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
@@ -94,41 +42,81 @@ jobs:
           aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Install Pulumi CLI
-        run: curl -fsSL https://get.pulumi.com | sh && echo "PATH=$PATH:$HOME/.pulumi/bin" >> $GITHUB_PATH
+        run: |
+          curl -fsSL https://get.pulumi.com | sh
+          echo "PATH=$PATH:$HOME/.pulumi/bin" >> $GITHUB_PATH
+          source $GITHUB_PATH
 
       - name: Pulumi login
         uses: pulumi/actions-login@v2
         with:
           access-token: ${{ secrets.PULUMI_ACCESS_TOKEN }}
 
+      - name: Prepare services JSON from payload
+        id: prepare
+        run: |
+          # If payload exists, write it to services.json. Expect an array of objects:
+          # [{ "name":"ecomm-users-service", "image_repo":"ecomm-users-service", "context":"services/users", "dockerfile":"services/users/Dockerfile" }, ...]
+          # If payload missing or empty -> exit with friendly message.
+          payload="${{ toJson(github.event.client_payload.services) }}"
+          echo "raw payload: $payload"
+          if [ -z "$payload" ] || [ "$payload" = "null" ] || [ "$payload" = "[]" ]; then
+            echo "No services found in client_payload.services - nothing to deploy"
+            echo "services_json=[]" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "$payload" | jq '.' > services.json
+          echo "Wrote services.json:"
+          cat services.json
+          echo "services_json<<EOF" >> $GITHUB_OUTPUT
+          cat services.json >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - name: Set images in Pulumi config for changed services
-        id: set-images
+        if: steps.prepare.outputs.services_json != '[]'
         run: |
           cd infra/pulumi
-          pulumi stack select ${{ secrets.PULUMI_STACK }}
 
-          # Helper function: set if changed
-          set_if_changed() {
-            svc_key=$1       # short key in pulumi images map (e.g. users)
-            repo_name=$2     # ecr repo name (ecomm-users-service)
-            changed=$3       # 'true'/'false' from detector
-            if [ "$changed" = "true" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ needs.detect-changed.outputs.infra_configs }}" = "true" ]; then
-              image="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${repo_name}:latest"
-              echo "Setting pulumi config images.${svc_key} = ${image}"
-              pulumi config set --path images.${svc_key} "${image}"
-            else
-              echo "Not changed: ${svc_key}"
-            fi
+          # select pulumi stack (assumes stack already created)
+          pulumi stack select "${{ secrets.PULUMI_STACK}}"
+
+          # Helper: convert repo name or full name to a short key that matches your Pulumi config keys
+          # e.g. ecomm-users-service  -> users
+          repo_to_key() {
+            repo="$1"
+            # remove prefix 'ecomm-' and suffix '-service' if present, also strip non alpha/digits
+            key=$(echo "$repo" | sed -E 's/^ecomm-//; s/-service$//; s/[^a-zA-Z0-9]/-/g')
+            echo "$key"
           }
 
-          set_if_changed users-service ecomm-users-service "${{ needs.detect-changed.outputs.users }}"
-          set_if_changed products-service ecomm-products-service "${{ needs.detect-changed.outputs.products }}"
-          set_if_changed orders-service ecomm-orders-service "${{ needs.detect-changed.outputs.orders }}"
-          set_if_changed notifications-service ecomm-notifications-service "${{ needs.detect-changed.outputs.notifications }}"
-          set_if_changed payments-service ecomm-payments-service "${{ needs.detect-changed.outputs.payments }}"
-          set_if_changed envoy ecomm-envoy "${{ needs.detect-changed.outputs.envoy }}"
+          # Iterate services.json and set pulumi config images.<key> = <account>.dkr.ecr.<region>.amazonaws.com/<image_repo>:<tag>
+          # The CI should include repo name and ideally tag (we assume latest if not present).
+          jq -c '.[]' ../services.json | while read -r item; do
+            image_repo=$(echo "$item" | jq -r '.image_repo // empty')
+            name=$(echo "$item" | jq -r '.name // empty')
+            tag=$(echo "$item" | jq -r '.tag // "latest"')
+            # fallback: if image_repo empty but name present, try using name
+            if [ -z "$image_repo" ] || [ "$image_repo" = "null" ]; then
+              image_repo="$name"
+            fi
+            if [ -z "$image_repo" ] || [ "$image_repo" = "null" ]; then
+              echo "Skipping item (no name/image_repo): $item"
+              continue
+            fi
+
+            key=$(repo_to_key "$image_repo")
+            image_uri="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${image_repo}:${tag}"
+
+            echo "Setting Pulumi config images.${key} = ${image_uri}"
+            pulumi config set --path "images.${key}" "${image_uri}" --stack "${{ secrets.PULUMI_STACK}}" --non-interactive
+          done
+
+          echo "Pulumi config values set. Current images.* entries:"
+          pulumi config --show-secrets | sed -n '1,200p'
 
       - name: Pulumi up (auto-approve)
+        if: steps.prepare.outputs.services_json != '[]'
         run: |
           cd infra/pulumi
-          pulumi up --yes
+          pulumi up --yes --stack "${{ secrets.PULUMI_STACK}}"

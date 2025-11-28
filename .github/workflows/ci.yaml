@@ -180,3 +180,20 @@ jobs:
 
       - name: Echo pushed image
         run: echo "Pushed ${{ matrix.service.image_repo }} -> ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ matrix.service.image_repo }}:${{ github.sha }}"
+
+      - name: Save services JSON to file
+        run: |
+          echo '${{ needs.detect-changed.outputs.services-json }}'
+        # OR if you have SERVICES_JSON in a step env, echo that var
+      
+      - name: Trigger deployment workflow (repository_dispatch)
+        env:
+          REPO: ${{ github.repository }}
+          OWNER: ${{ github.repository_owner }}
+          PAYLOAD: ${{ needs.detect-changed.outputs.services-json }}
+        run: |
+          curl -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.PERSONAL_ACCESS_TOKEN }}" \
+            https://api.github.com/repos/$OWNER/${{ github.event.repository.name }}/dispatches \
+            -d "{\"event_type\":\"deploy-ecs-services\",\"client_payload\":{\"services\":$PAYLOAD}}"
