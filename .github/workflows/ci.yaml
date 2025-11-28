@@ -90,22 +90,22 @@ jobs:
             add_service "envoy-service" "ecomm-envoy" "infra/envoy" "infra/envoy/Dockerfile"
           else
             if [ "${{ steps.changed.outputs.users }}" = "true" ]; then
-              add_service "ecomm-users-service" "ecomm-users-service" "services/users" "services/users/Dockerfile"
+              add_service "users-service" "ecomm-users-service" "services/users" "services/users/Dockerfile"
             fi
             if [ "${{ steps.changed.outputs.orders }}" = "true" ]; then
-              add_service "ecomm-orders-service" "ecomm-orders-service" "services/orders" "services/orders/Dockerfile"
+              add_service "orders-service" "ecomm-orders-service" "services/orders" "services/orders/Dockerfile"
             fi
             if [ "${{ steps.changed.outputs.products }}" = "true" ]; then
-              add_service "ecomm-products-service" "ecomm-products-service" "services/products" "services/products/Dockerfile"
+              add_service "products-service" "ecomm-products-service" "services/products" "services/products/Dockerfile"
             fi
             if [ "${{ steps.changed.outputs.notifications }}" = "true" ]; then
-              add_service "ecomm-notifications-service" "ecomm-notifications-service" "services/notifications" "services/notifications/Dockerfile"
+              add_service "notifications-service" "ecomm-notifications-service" "services/notifications" "services/notifications/Dockerfile"
             fi
             if [ "${{ steps.changed.outputs.payments }}" = "true" ]; then
-              add_service "ecomm-payments-service" "ecomm-payments-service" "services/payments" "services/payments/Dockerfile"
+              add_service "payments-service" "ecomm-payments-service" "services/payments" "services/payments/Dockerfile"
             fi
             if [ "${{ steps.changed.outputs.envoy }}" = "true" ]; then
-              add_service "ecomm-envoy" "ecomm-envoy" "infra/envoy" "infra/envoy/Dockerfile"
+              add_service "envoy-service" "ecomm-envoy" "infra/envoy" "infra/envoy/Dockerfile"
             fi
           fi
 
