@@ -19,6 +19,10 @@ app.use((req, res, next) => {
   next();
 });
 
+app.get('/', (req, res) => {
+  res.json({ message: 'Notifications service is running' });
+});
+
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'notifications', timestamp: new Date().toISOString() });
 });
