@@ -1,0 +1,15 @@
+config:
+  aws:region: ap-south-1
+  ecsClusterName: excited-koala-gagdmc
+  awsRegion: ap-south-1
+  services:
+    users-service:
+      containerName: users-service
+    products-service:
+      containerName: products-service
+  images:
+    users-service: 121568408183.dkr.ecr.ap-south-1.amazonaws.com/ecomm-users-service:latest
+  aws:secretKey:
+    secure: AAABAL3gD19A+kI0Z24EmFQbScp6BVnSUyjyzXMoDMtn5lutb9votIMxVzWzJ3KZrQN8e946Ea3Mmvbe/73LQVM0oTOljiv6
+  aws:accessKey:
+    secure: AAABAFT8BYXktmWqjmGb2XU9o684VU7Di/hpMnfGzt2cwSz0WCKvsD0stdruu0xjU/fsjQ==
