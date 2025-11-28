@@ -48,9 +48,12 @@ jobs:
           source $GITHUB_PATH
 
       - name: Pulumi login
-        uses: pulumi/actions-login@v2
+        uses: pulumi/actions@v6
         with:
-          access-token: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          command: preview
+          stack-name: tejusoni55-org/${{ secrets.PULUMI_STACK }}
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
 
       - name: Prepare services JSON from payload
         id: prepare
