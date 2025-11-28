@@ -36,9 +36,6 @@ jobs:
 
       - name: Pulumi login
         uses: pulumi/actions@v6
-        with:
-          command: preview
-          stack-name: tejusoni55-org/${{ secrets.PULUMI_STACK }}
         env:
           PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
 
