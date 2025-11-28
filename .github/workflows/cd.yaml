@@ -34,6 +34,14 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
+      - name: Setup Node & install Pulumi deps
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+  
+      - name: Install npm deps for Pulumi program
+        run: npm ci --prefix infra/pulumi
+
       - name: Pulumi login
         uses: pulumi/actions@v6
         with:
