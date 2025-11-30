@@ -1,0 +1,123 @@
+# Docker Compose configuration for local development with latest versions
+# Includes PostgreSQL 17, Redis 7, Kafka with KRaft (no Zookeeper), and OpenTelemetry Collector
+# BetterStack integration for logs and traces
+
+version: '3.8'
+
+services:
+  # PostgreSQL database (latest version 17)
+  postgres:
+    image: postgres:17-alpine
+    container_name: ecomm-postgres
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+      POSTGRES_DB: ${DB_NAME:-ecomm_db}
+      POSTGRES_PORT: ${DB_PORT:-5432}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres:/var/lib/postgresql/certs
+    command: >
+      postgres -c ssl=on
+               -c ssl_cert_file=/var/lib/postgresql/certs/server.crt
+               -c ssl_key_file=/var/lib/postgresql/certs/server.key
+    networks:
+      - ecomm-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis cache (latest version 7)
+  redis:
+    image: redis:8-alpine
+    container_name: ecomm-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - ecomm-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Kafka message broker with KRaft mode (no Zookeeper needed)
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: ecomm-kafka
+    # NOTE: no 'ports' published to host -> no Windows host port binding required
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_LISTENERS: 'PLAINTEXT://kafka:29092,CONTROLLER://kafka:29093,SASL_PLAINTEXT://0.0.0.0:9092'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka.ecomm.internal:29092,SASL_PLAINTEXT://kafka.ecomm.internal:9092'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,SASL_PLAINTEXT:SASL_PLAINTEXT'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:29093'
+      KAFKA_BROKER_RACK: 'MZone0'
+      KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
+      CLUSTER_ID: 'MkwQo83dQn2W_0DTbb   VZbQ'
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      KAFKA_LOG_RETENTION_HOURS: 24
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824
+      KAFKA_SASL_ENABLED_MECHANISMS: 'PLAIN'
+      KAFKA_SASL_MECHANISM_INTER_BROKER_PROTOCOL: 'PLAIN'
+      KAFKA_LISTENER_NAME_SASL_ENABLED_MECHANISMS_SASL_PLAINTEXT: 'PLAIN'
+      KAFKA_OPTS: '-Djava.security.auth.login.config=/etc/kafka/kafka_server_jaas.conf'
+      KAFKAJS_NO_PARTITIONER_WARNING: 1
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+      - ./infra/kafka/kafka_server_jaas.conf:/etc/kafka/kafka_server_jaas.conf
+      - ./infra/kafka/client.properties:/etc/kafka/client.properties:ro
+    healthcheck:
+      test:
+        - "CMD"
+        - "/usr/bin/kafka-broker-api-versions"
+        - "--bootstrap-server"
+        - "localhost:9092"
+        - "--command-config"
+        - "/etc/kafka/client.properties"
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    networks:
+      - ecomm-network
+  
+  # OpenTelemetry Collector (latest version with contrib)
+  # Collects logs from Winston and sends to BetterStack
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib
+    container_name: ecomm-otel-collector
+    command:
+      - "--config=/etc/otel-collector-config.yaml"
+    volumes:
+      - ./infra/otel-collector/config.yaml:/etc/otel-collector-config.yaml
+    ports:
+      # - "4317:4317"     # OTLP gRPC receiver (from services)
+      - "4318:4318"     # OTLP HTTP receiver (from services)
+    environment:
+      BETTERSTACK_LOGS_TOKEN: ${BETTERSTACK_LOGS_TOKEN:-your-token-here}
+      OTEL_SERVICE_NAME: ecomm-otel-collector
+    networks:
+      - ecomm-network
+    depends_on:
+      - postgres
+      - kafka
+
+
+networks:
+  ecomm-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  kafka_data:

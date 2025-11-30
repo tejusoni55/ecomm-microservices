@@ -1,21 +1,20 @@
 config:
   aws:region: ap-south-1
-  ecsClusterName: excited-koala-gagdmc
-  awsRegion: ap-south-1
-  services:
-    users-service:
-      containerName: users-service
-    products-service:
-      containerName: products-service
-    orders-service:
-      containerName: orders-service
-    notifications-service:
-      containerName: notifications-service
-    payments-service:
-      containerName: payments-service
+  ecomm-infra:awsRegion: ap-south-1
+  ecomm-infra:ecsClusterName: excited-koala-gagdmc
+  ecomm-infra:services:
     envoy-service:
       containerName: envoy
-  aws:secretKey:
-    secure: AAABAL3gD19A+kI0Z24EmFQbScp6BVnSUyjyzXMoDMtn5lutb9votIMxVzWzJ3KZrQN8e946Ea3Mmvbe/73LQVM0oTOljiv6
-  aws:accessKey:
-    secure: AAABAFT8BYXktmWqjmGb2XU9o684VU7Di/hpMnfGzt2cwSz0WCKvsD0stdruu0xjU/fsjQ==
+    notifications-service:
+      containerName: notifications-service
+    orders-service:
+      containerName: orders-service
+    payments-service:
+      containerName: payments-service
+    products-service:
+      containerName: products-service
+    users-service:
+      containerName: users-service
+  ecomm-infra:ec2InstanceType: t3.small
+  ecomm-infra:mode: infra
+  ecomm-infra:namePrefix: ecomm
